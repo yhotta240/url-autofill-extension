@@ -4,7 +4,7 @@
   "description": "URLフラグメントに指定した情報をWebフォームへ自動入力するChrome拡張機能",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
     "check": "biome check src",
     "check:fix": "biome check --write --unsafe src",
     "typecheck": "tsc --noEmit",
