@@ -19,7 +19,9 @@ export function resolveTarget(target: FillTarget, root: Document): Resolution {
     }
   }
 
-  const named = root.getElementsByName(target.value);
+  const named = Array.from(root.getElementsByName(target.value)).filter((element) =>
+    element.matches("input, textarea, select"),
+  );
   // name が曖昧な場合は id へフォールバックしない．
   if (named.length > 0) return unique(named);
 

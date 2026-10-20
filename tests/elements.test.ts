@@ -14,6 +14,34 @@ test("nameを優先し，一致しない場合のみidで検索する", () => {
   assert.equal(resolveTarget({ kind: "field", value: "missing" }, document).status, "missing");
 });
 
+test("非フォーム要素のnameは重複判定から除外する", () => {
+  const { document } = new JSDOM(
+    '<meta name="description"><textarea name="description"></textarea><form name="email"></form><input name="email"><iframe name="choice"></iframe><select name="choice"></select>',
+  ).window;
+  for (const [name, tag] of [
+    ["description", "TEXTAREA"],
+    ["email", "INPUT"],
+    ["choice", "SELECT"],
+  ]) {
+    const result = resolveTarget({ kind: "field", value: name }, document);
+    assert.equal(result.status, "found");
+    if (result.status === "found") assert.equal(result.element.tagName, tag);
+  }
+});
+
+test("非フォーム要素だけのnameに妨げられずidへフォールバックする", () => {
+  const { document } = new JSDOM('<meta name="email"><input id="email">').window;
+  const result = resolveTarget({ kind: "field", value: "email" }, document);
+  assert.equal(result.status, "found");
+  if (result.status === "found") assert.equal(result.element.id, "email");
+});
+
+test("フォーム入力欄同士のnameが重複する場合は引き続きスキップする", () => {
+  const { document } = new JSDOM('<meta name="x"><input name="x"><textarea name="x"></textarea>')
+    .window;
+  assert.equal(resolveTarget({ kind: "field", value: "x" }, document).status, "ambiguous");
+});
+
 test("重複したname/id/セレクタと不正なセレクタを拒否する", () => {
   const { document } = new JSDOM(
     '<input name="x"><input name="x" id="x"><input id="dup"><input id="dup">',
