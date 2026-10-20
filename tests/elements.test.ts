@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
 import { JSDOM } from "jsdom";
+import { test } from "vitest";
 import { fillElement } from "../src/content/autofill.ts";
 import { resolveTarget } from "../src/content/resolver.ts";
 

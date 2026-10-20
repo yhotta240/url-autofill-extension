@@ -79,9 +79,12 @@ https://example.com/#/settings#url-autofill:email=test%40example.com
 
 ```bash
 npm test
+npm run test:watch
 npm run build
 npm run build:dev
 npm run watch
 ```
+
+`npm test` はVitestでテストを1回実行し，`npm run test:watch` は変更を監視してテストを再実行する．
 
 `watch` は変更時に再ビルドする．ビルド後は `chrome://extensions/` で拡張機能を更新し，対象ページを再読み込みする．

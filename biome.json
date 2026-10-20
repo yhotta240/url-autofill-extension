@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["src/**", "public/**"]
+    "includes": ["src/**", "tests/**", "public/**", "vitest.config.ts"]
   },
   "formatter": {
     "enabled": true,
