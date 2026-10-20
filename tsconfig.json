@@ -13,5 +13,5 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["src", "scripts/reload.ts", "scripts/plugins", "vite.config.ts"]
+  "include": ["src", "scripts/reload.ts", "scripts/plugins", "vite.config.ts", "tests", "vitest.config.ts"]
 }

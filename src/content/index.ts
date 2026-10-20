@@ -1,5 +1,3 @@
-import { logInfo } from "../utils/logger";
+import { watchAutofillSetting } from "./activation.ts";
 
-console.log("content script");
-
-logInfo(`ページ読み込み: ${document.title || location.pathname}`, "content");
+if (window === window.top) watchAutofillSetting(document);
