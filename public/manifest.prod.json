@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Chrome Extension Starter Kit",
-  "short_name": "Chrome Extension Starter Kit",
-  "version": "0.3.0",
-  "description": "",
+  "name": "URL AutoFill",
+  "short_name": "URL AutoFill",
+  "version": "0.0.1",
+  "description": "URLフラグメントに指定した情報をWebフォームへ自動入力するChrome拡張機能",
   "icons": {
     "48": "icons/icon.png"
   },
