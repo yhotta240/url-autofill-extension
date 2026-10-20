@@ -24,5 +24,7 @@ export function resolveTarget(target: FillTarget, root: Document): Resolution {
   if (named.length > 0) return unique(named);
 
   // 値をセレクタへ埋め込まず，特殊文字や重複idも正しく扱う．
-  return unique(Array.from(root.querySelectorAll("[id]")).filter((item) => item.id === target.value));
+  return unique(
+    Array.from(root.querySelectorAll("[id]")).filter((item) => item.id === target.value),
+  );
 }
