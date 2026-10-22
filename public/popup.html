@@ -109,75 +109,40 @@
 
   <div class="tab-content" id="myTabContent">
     <!-- 設定 -->
-    <div class="tab-pane fade mt-3 mx-2 show active" id="settings" role="tabpanel" style="margin-bottom: 180px;"
-      aria-labelledby="settings-tab">
-      <h5 class="">設定</h5>
-      <p class="text-muted small">ここに拡張機能の設定項目を追加してください</p>
-
-      <!-- =========================
-        設定項目のテンプレート
-        ※ 以下のコメントアウトされた例を参考に，実際の設定項目を追加してください
-      ========================== -->
-      <ul class="list-group list-group-flush">
-        <!-- テーマ切替は右上のアイコンから行います -->
-        <!-- 
-        ========== 設定項目の例 ==========
-
-        ▼ セレクトボックス（ドロップダウン）の例:
-        <li class="list-group-item">
-          <div class="mb-3">
-            <label for="theme-select" class="form-label d-flex">テーマ：</label>
-            <select class="form-select" id="theme-select">
-              <option value="light">ライト</option>
-              <option value="dark">ダーク</option>
-              <option value="system">システム</option>
-            </select>
-          </div>
-        </li>
-
-        ▼ スライダー（範囲入力）の例:
-        <li class="list-group-item">
-          <div class="mb-3">
-            <label for="font-size" class="form-label d-flex">フォントサイズ：</label>
-            <input type="range" class="form-range" id="font-size" min="12" max="24" value="16">
-            <small class="text-muted">12〜24の範囲で調整可能</small>
-          </div>
-        </li>
-
-        ▼ チェックボックスの例:
-        <li class="list-group-item">
-          <div class="form-check mb-2">
-            <input class="form-check-input" type="checkbox" id="enable-notifications">
-            <label class="form-check-label" for="enable-notifications">
-              通知を受け取る
-            </label>
-          </div>
-        </li>
-
-        ▼ テキスト入力の例:
-        <li class="list-group-item">
-          <div class="mb-3">
-            <label for="api-key" class="form-label d-flex">APIキー：</label>
-            <input type="text" class="form-control" id="api-key" placeholder="APIキーを入力">
-          </div>
-        </li>
-
-        ▼ ラジオボタンの例:
-        <li class="list-group-item">
-          <div class="mb-3">
-            <label class="form-label d-flex">表示モード：</label>
-            <div class="form-check">
-              <input class="form-check-input" type="radio" name="display-mode" id="mode-compact" value="compact">
-              <label class="form-check-label" for="mode-compact">コンパクト</label>
-            </div>
-            <div class="form-check">
-              <input class="form-check-input" type="radio" name="display-mode" id="mode-standard" value="standard" checked>
-              <label class="form-check-label" for="mode-standard">標準</label>
-            </div>
-          </div>
-        </li>
-        -->
-      </ul>
+    <div class="tab-pane fade mt-3 mx-2 show active" id="settings" role="tabpanel" aria-labelledby="settings-tab" style="margin-bottom: 180px;">
+      <form id="url-generator" aria-labelledby="url-generator-heading" autocomplete="off" novalidate>
+        <h2 class="h6 mb-3" id="url-generator-heading">URL生成プレビュー</h2>
+        <div class="mb-2">
+          <label for="generator-page-url" class="form-label">対象ページURL（必須）</label>
+          <input type="url" class="form-control form-control-sm" id="generator-page-url" placeholder="https://example.com/form" required aria-describedby="generator-source-status generator-error" spellcheck="false">
+          <p id="generator-source-status" class="form-text mb-0" role="status">現在のページURLを取得しています…</p>
+        </div>
+        <div class="mb-2">
+          <label for="generator-method" class="form-label">要素の指定方法</label>
+          <select class="form-select form-select-sm" id="generator-method">
+            <option value="field">name / id</option>
+            <option value="selector">CSSセレクタ</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label for="generator-target" class="form-label" id="generator-target-label">フィールド名（必須）</label>
+          <input type="text" class="form-control form-control-sm" id="generator-target" value="email" placeholder="email" required aria-describedby="generator-error" spellcheck="false">
+        </div>
+        <div class="mb-2">
+          <label for="generator-value" class="form-label">入力値</label>
+          <textarea class="form-control form-control-sm" id="generator-value" rows="2">test@example.com</textarea>
+        </div>
+        <div class="mb-2">
+          <label for="generator-result" class="form-label">生成URL</label>
+          <textarea class="form-control form-control-sm font-monospace" id="generator-result" rows="3" readonly spellcheck="false" aria-describedby="generator-error"></textarea>
+        </div>
+        <p class="small text-danger mb-2" id="generator-error" role="status" hidden></p>
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <button type="button" class="btn btn-primary btn-sm" id="generator-copy" disabled>URLをコピー</button>
+          <span class="small" id="generator-copy-status" role="status"></span>
+        </div>
+        <p class="small text-body-secondary mb-3">URL形式を試すためのプレビューです．実際の拡張機能による入力は行われません．</p>
+      </form>
     </div>
 
     <!-- ドキュメント -->
