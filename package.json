@@ -1,6 +1,6 @@
 {
   "name": "url-autofill-extension",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "URLフラグメントに指定した情報をWebフォームへ自動入力するChrome拡張機能",
   "type": "module",
   "scripts": {
@@ -11,6 +11,9 @@
     "build": "npm run check && npm run typecheck && vite build",
     "build:dev": "vite build --mode development",
     "watch": "vite build --mode development --watch",
+    "version:patch": "exr version patch --manifest ./public/manifest.prod.json",
+    "version:minor": "exr version minor --manifest ./public/manifest.prod.json",
+    "version:major": "exr version major --manifest ./public/manifest.prod.json",
     "pack": "npm run build && exr pack dist/",
     "release": "npm run build && exr release dist/ --force",
     "test:watch": "vitest"
