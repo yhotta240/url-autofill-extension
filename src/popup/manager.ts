@@ -15,6 +15,7 @@ import { setupMoreMenu } from "./components/menu";
 import { PopupPanel } from "./components/panel";
 import { initShareMenu } from "./components/share";
 import { applyTheme, setupThemeMenu } from "./components/theme";
+import { setupUrlGenerator } from "./components/url-generator";
 import { setupVersionTab } from "./components/version";
 import type { ManifestMetadata, SharePlatform, Theme } from "./types";
 
@@ -185,6 +186,7 @@ export class PopupManager {
     }
 
     setupMoreMenu();
+    setupUrlGenerator();
     setupInfoTab(this.manifestData, this.manifestMetadata);
     setupDocumentTab();
     setupVersionTab(this.manifestData.version);
