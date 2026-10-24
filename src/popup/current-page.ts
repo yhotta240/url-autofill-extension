@@ -1,15 +1,24 @@
 export type CurrentPage = { tabId: number; url: string; documentVersion?: number };
 
+export function normalizePageUrl(value: string): string | null {
+  try {
+    const url = new URL(value.trim());
+    return ["http:", "https:"].includes(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getCurrentPage(windowId?: number): Promise<CurrentPage | null> {
   try {
     const query: chrome.tabs.QueryInfo = { active: true };
     if (windowId === undefined) query.currentWindow = true;
     else query.windowId = windowId;
     const [tab] = await chrome.tabs.query(query);
-    const url = new URL(tab?.url ?? "");
-    if (!["http:", "https:"].includes(url.protocol)) return null;
+    const url = normalizePageUrl(tab?.url ?? "");
+    if (!url) return null;
     if (tab.id === undefined) return null;
-    return { tabId: tab.id, url: url.href };
+    return { tabId: tab.id, url };
   } catch {
     return null;
   }
