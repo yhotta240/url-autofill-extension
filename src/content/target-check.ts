@@ -2,10 +2,38 @@ import {
   isTargetCandidatesRequest,
   type TargetCandidatesResponse,
 } from "../shared/target-candidates.ts";
-import { isTargetCheckRequest, type TargetCheckResponse } from "../shared/target-check.ts";
+import {
+  isTargetCheckRequest,
+  type TargetCheckResponse,
+  type ValueInputInfo,
+} from "../shared/target-check.ts";
+import { getFillBlockReason } from "./autofill.ts";
 import { getRadioInfo } from "./radio.ts";
 import { resolveTarget } from "./resolver.ts";
 import { getTargetCandidates } from "./target-candidates.ts";
+
+function getValueInputInfo(element: Element): ValueInputInfo | undefined {
+  if (getFillBlockReason(element)) return;
+  const view = element.ownerDocument.defaultView;
+  if (!view) return;
+  if (element instanceof view.HTMLSelectElement) {
+    const seen = new Set<string>();
+    const options = [];
+    for (const option of element.options) {
+      if (seen.has(option.value)) continue;
+      seen.add(option.value);
+      options.push({
+        label: option.label,
+        value: option.value,
+        disabled: option.disabled || option.closest("optgroup[disabled]") !== null,
+      });
+    }
+    return { kind: "select", options };
+  }
+  if (element instanceof view.HTMLInputElement && element.type === "checkbox") {
+    return { kind: "checkbox" };
+  }
+}
 
 /** 自動入力の有効状態に関係なく，検索結果だけを返す． */
 export function listenForTargetChecks(root: Document): () => void {
@@ -27,10 +55,15 @@ export function listenForTargetChecks(root: Document): () => void {
     if (!isTargetCheckRequest(message)) return;
     const result = resolveTarget(message.target, root);
     const radio = getRadioInfo(result);
+    const valueInput =
+      result.status === "found" && result.kind === "element"
+        ? getValueInputInfo(result.element)
+        : undefined;
     sendResponse({
       url: view.location.href,
       status: result.status,
       ...(radio ? { radio } : {}),
+      ...(valueInput ? { valueInput } : {}),
     } satisfies TargetCheckResponse);
   };
 

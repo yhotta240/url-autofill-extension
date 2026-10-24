@@ -47,6 +47,14 @@ function change(id: string, value: string, index = 0): void {
     new Event(id === "generator-method" ? "change" : "input", { bubbles: true }),
   );
 }
+function chooseValue(text: string, index = 0): void {
+  const select = items()[index].querySelector<HTMLSelectElement>("[data-value-select]");
+  const option = [...(select?.options ?? [])].find((option) => option.textContent === text);
+  expect(option).toBeDefined();
+  if (!select || !option) return;
+  select.value = option.value;
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+}
 async function setup(): Promise<void> {
   setupUrlGenerator();
   await Promise.resolve();
@@ -62,7 +70,7 @@ const radioOptions = [
 ];
 function radioSelect(index = 0): HTMLSelectElement {
   return items()[index].querySelector<HTMLSelectElement>(
-    "[data-radio-select]",
+    "[data-value-select]",
   ) as HTMLSelectElement;
 }
 function chooseRadio(value: string, index = 0): void {
@@ -612,4 +620,137 @@ test("確認待ちの項目を削除すると問い合わせを止め，他の�
   expect(items()[0].querySelector("[data-target-status]")?.textContent).toBe("見つかりました");
   change("generator-target", "");
   expect(items()[0].querySelector<HTMLElement>("[data-target-status]")?.hidden).toBe(true);
+});
+
+test("チェックボックスの表示切替は生成URLやコピー結果を変えず，選択変更だけを反映する", async () => {
+  sendMessage.mockResolvedValue({
+    url: "https://example.com/form?q=1#/settings",
+    status: "found",
+    valueInput: { kind: "checkbox" },
+  });
+  await setup();
+  change("generator-target", "agree");
+  change("generator-value", "1");
+  const before = generated();
+  button().click();
+  await vi.advanceTimersByTimeAsync(300);
+  expect(input("generator-value").value).toBe("1");
+  expect(input("generator-value").hidden).toBe(true);
+  expect(generated()).toBe(before);
+  expect(writeText).toHaveBeenCalledExactlyOnceWith(before);
+  expect(document.getElementById("generator-copy-status")?.textContent).toBe("コピーしました．");
+  chooseValue("外す");
+  expect(parseAutofillUrl(generated())?.entries[0].value).toBe("false");
+  expect(document.getElementById("generator-copy-status")?.textContent).toBe("");
+});
+
+test.each([
+  "a&b",
+  "",
+])("保存URLの各入力値を，UI情報の取得後もそのまま復元する（ラジオ=%s）", async (radioValue) => {
+  const url = "https://example.com/form?q=1#/settings";
+  sendMessage.mockImplementation((_id, message) =>
+    Promise.resolve({
+      url,
+      status: "found",
+      ...(message.target.kind === "selector"
+        ? { radio: { mode: "direct", value: "a&b" } }
+        : {
+            valueInput:
+              message.target.value === "agree"
+                ? { kind: "checkbox" }
+                : { kind: "select", options: [{ label: "プランA", value: "a", disabled: false }] },
+          }),
+    }),
+  );
+  const generator = setupUrlGenerator();
+  await Promise.resolve();
+  const savedUrl = `${url}#url-autofill:agree=1&plan=future%0Avalue&fill(%23radio)=${encodeURIComponent(radioValue)}`;
+  expect(generator?.edit({ id: "saved", name: "保存済み", url: savedUrl, createdAt: 1 })).toBe(
+    true,
+  );
+  await vi.advanceTimersByTimeAsync(300);
+  expect(items().map((_, index) => input("generator-value", index).value)).toEqual([
+    "1",
+    "future\nvalue",
+    radioValue,
+  ]);
+  expect(input("generator-value", 0).hidden).toBe(true);
+  expect(input("generator-value", 1).hidden).toBe(true);
+  const unknown =
+    items()[1].querySelector<HTMLSelectElement>("[data-value-select]")?.selectedOptions[0];
+  expect(unknown?.textContent).toBe("現在の値：future\nvalue");
+  expect(unknown?.disabled).toBe(true);
+  expect(input("generator-value", 2).hidden).toBe(radioValue !== "");
+  const radio = items()[2].querySelector<HTMLOutputElement>("[data-radio-output]");
+  expect(radio?.hidden).toBe(radioValue === "");
+  expect(generated()).toBe(savedUrl);
+  expect(save).not.toHaveBeenCalled();
+});
+
+test("フォーカスで選択肢を再取得し，指定方法を変えても値を保持する", async () => {
+  const response = {
+    url: "https://example.com/form?q=1#/settings",
+    status: "found",
+    valueInput: { kind: "select", options: [{ label: "A", value: "a", disabled: false }] },
+  };
+  sendMessage.mockResolvedValue(response);
+  await setup();
+  change("generator-target", "plan");
+  change("generator-value", "a");
+  await vi.advanceTimersByTimeAsync(300);
+  const select = items()[0].querySelector<HTMLSelectElement>("[data-value-select]");
+  expect(select).not.toBeNull();
+  const before = generated();
+  response.valueInput.options.push({ label: "B", value: "b", disabled: false });
+  select?.focus();
+  await vi.advanceTimersByTimeAsync(300);
+  expect(sendMessage).toHaveBeenCalledTimes(2);
+  expect([...(select?.options ?? [])].map((option) => option.textContent)).toContain("B");
+  expect(document.activeElement).toBe(select);
+  expect(generated()).toBe(before);
+  expect([...(select?.options ?? [])].some((option) => option.textContent === "手入力")).toBe(
+    false,
+  );
+  change("generator-method", "selector");
+  change("generator-target", "#plan");
+  expect(input("generator-value").hidden).toBe(false);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(input("generator-value").hidden).toBe(true);
+  expect(input("generator-value").value).toBe("a");
+});
+
+test("古い入力先の情報やページ変更を反映せず，取得失敗でも入力値とURLを保持する", async () => {
+  const url = "https://example.com/form?q=1#/settings";
+  let oldReply!: (response: unknown) => void;
+  sendMessage.mockReturnValueOnce(
+    new Promise((resolve) => {
+      oldReply = resolve;
+    }),
+  );
+  const generator = setupUrlGenerator();
+  await Promise.resolve();
+  change("generator-target", "agree");
+  change("generator-value", "a");
+  await vi.advanceTimersByTimeAsync(300);
+  sendMessage.mockResolvedValue({
+    url,
+    status: "found",
+    valueInput: { kind: "select", options: [{ label: "A", value: "a", disabled: false }] },
+  });
+  change("generator-target", "plan");
+  await vi.advanceTimersByTimeAsync(300);
+  oldReply({ url, status: "found", valueInput: { kind: "checkbox" } });
+  await Promise.resolve();
+  const select = items()[0].querySelector<HTMLSelectElement>("[data-value-select]");
+  expect(select?.selectedOptions[0].textContent).toBe("A");
+  const before = generated();
+  generator?.updateCurrentPage({ tabId: 8, url });
+  expect(input("generator-value").hidden).toBe(false);
+  sendMessage.mockRejectedValue(new Error("no receiver"));
+  await vi.advanceTimersByTimeAsync(300);
+  expect(input("generator-value").value).toBe("a");
+  expect(select?.hidden).toBe(true);
+  expect(generated()).toBe(before);
+  expect(button().disabled).toBe(false);
 });

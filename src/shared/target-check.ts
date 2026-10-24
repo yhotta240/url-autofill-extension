@@ -4,11 +4,17 @@ import type { Resolution } from "../content/resolver.ts";
 export const TARGET_CHECK_TYPE = "url-autofill:check-target";
 
 export type TargetCheckRequest = { type: typeof TARGET_CHECK_TYPE; target: FillTarget };
-export type RadioOption = { label: string; value: string; disabled: boolean };
+export type ValueInputOption = { label: string; value: string; disabled: boolean };
 export type RadioInfo =
   | { mode: "direct"; group?: string; value: string }
-  | { mode: "group"; group: string; options: RadioOption[] };
-export type TargetCheckResponse = { url: string; status: Resolution["status"]; radio?: RadioInfo };
+  | { mode: "group"; group: string; options: ValueInputOption[] };
+export type ValueInputInfo = { kind: "select"; options: ValueInputOption[] } | { kind: "checkbox" };
+export type TargetCheckResponse = {
+  url: string;
+  status: Resolution["status"];
+  radio?: RadioInfo;
+  valueInput?: ValueInputInfo;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -31,7 +37,9 @@ export function isTargetCheckResponse(value: unknown): value is TargetCheckRespo
       value.status === "ambiguous" ||
       value.status === "invalid-selector" ||
       value.status === "invalid-radio-group") &&
-    (value.radio === undefined || (value.status === "found" && isRadioInfo(value.radio)))
+    (value.radio === undefined || (value.status === "found" && isRadioInfo(value.radio))) &&
+    (value.valueInput === undefined ||
+      (value.status === "found" && isValueInputInfo(value.valueInput)))
   );
 }
 
@@ -48,12 +56,23 @@ function isRadioInfo(value: unknown): value is RadioInfo {
     typeof value.group === "string" &&
     Array.isArray(value.options) &&
     value.options.length > 0 &&
-    value.options.every(
-      (option) =>
-        isRecord(option) &&
-        typeof option.label === "string" &&
-        typeof option.value === "string" &&
-        typeof option.disabled === "boolean",
-    )
+    value.options.every(isOption)
+  );
+}
+
+function isOption(value: unknown): value is ValueInputOption {
+  return (
+    isRecord(value) &&
+    typeof value.label === "string" &&
+    typeof value.value === "string" &&
+    typeof value.disabled === "boolean"
+  );
+}
+
+function isValueInputInfo(value: unknown): value is ValueInputInfo {
+  return (
+    isRecord(value) &&
+    (value.kind === "checkbox" ||
+      (value.kind === "select" && Array.isArray(value.options) && value.options.every(isOption)))
   );
 }

@@ -107,3 +107,77 @@ test("ラジオ情報はラベル・無効状態・フォーム所有者を返�
   document.body.prepend(document.createElement("form"));
   expect(reply("#a").radio.group).toBe(direct.group);
 });
+
+test("チェックボックスの情報を返し，チェック状態は読み取らない", () => {
+  document.body.innerHTML = '<input id="choice" type="checkbox" checked>';
+  Object.defineProperty(document.querySelector("input"), "checked", {
+    get() {
+      throw new Error("チェック状態を取得しない");
+    },
+    set() {
+      throw new Error("チェック状態を変更しない");
+    },
+  });
+  const reply = vi.fn();
+  listener({ type: TARGET_CHECK_TYPE, target: { kind: "selector", value: "#choice" } }, {}, reply);
+  expect(reply).toHaveBeenCalledExactlyOnceWith({
+    url: window.location.href,
+    status: "found",
+    valueInput: { kind: "checkbox" },
+  });
+});
+
+test("選択肢の表示名・値・無効状態を返し，同じ値は最初の選択肢にまとめる", () => {
+  document.body.innerHTML = `<select name="plan" multiple>
+    <option value="">選んでください</option>
+    <option value="a" label="プランA" selected>A</option>
+    <option value="duplicate" disabled>最初</option>
+    <option value="duplicate">重複</option>
+    <optgroup disabled><option value="b">プランB</option></optgroup>
+  </select>`;
+  const select = document.querySelector("select");
+  expect(select).not.toBeNull();
+  for (const property of ["value", "selectedIndex", "selectedOptions"]) {
+    Object.defineProperty(select, property, {
+      get() {
+        throw new Error("現在の選択状態を取得しない");
+      },
+    });
+  }
+  const reply = vi.fn();
+  listener({ type: TARGET_CHECK_TYPE, target: { kind: "field", value: "plan" } }, {}, reply);
+  expect(reply).toHaveBeenCalledExactlyOnceWith({
+    url: window.location.href,
+    status: "found",
+    valueInput: {
+      kind: "select",
+      options: [
+        { label: "選んでください", value: "", disabled: false },
+        { label: "プランA", value: "a", disabled: false },
+        { label: "最初", value: "duplicate", disabled: true },
+        { label: "プランB", value: "b", disabled: true },
+      ],
+    },
+  });
+  expect(select?.options[1].selected).toBe(true);
+});
+
+test("未対応・無効な入力欄と複数一致には入力UI情報を返さない", () => {
+  document.body.innerHTML = `<input id="text"><select id="disabled" disabled></select>
+    <input id="sensitive" type="checkbox" autocomplete="one-time-code">
+    <input type="radio" name="group"><input type="radio" name="group">`;
+  const text = document.querySelector("input");
+  Object.defineProperty(text, "value", {
+    get() {
+      throw new Error("入力内容を取得しない");
+    },
+  });
+  for (const name of ["text", "disabled", "sensitive", "group"]) {
+    const reply = vi.fn();
+    listener({ type: TARGET_CHECK_TYPE, target: { kind: "field", value: name } }, {}, reply);
+    expect(reply.mock.calls[0][0]).toEqual({
+      url: window.location.href,
+      status: name === "group" ? "invalid-radio-group" : "found",
+    });
+  }
+});
