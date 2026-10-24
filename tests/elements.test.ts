@@ -36,6 +36,30 @@ test("非フォーム要素だけのnameに妨げられずidへフォールバ�
   if (result.status === "found") assert.equal(result.element.id, "email");
 });
 
+test.each([
+  ["name", { kind: "field", value: "email" }, 'name="email"'],
+  ["id", { kind: "field", value: "email" }, 'id="email"'],
+  ["CSSセレクタ", { kind: "selector", value: ".email" }, 'class="email"'],
+] as const)("%s指定でhidden入力を除外して一致件数を判定する", (_method, target, attribute) => {
+  const { document } = new JSDOM(
+    `<input type="hidden" ${attribute}><input type="email" ${attribute}>`,
+  ).window;
+  const result = resolveTarget(target, document);
+  assert.ok(result.status === "found", result.status);
+  assert.equal(result.element, document.querySelector('input[type="email"]'));
+  result.element.remove();
+  assert.equal(resolveTarget(target, document).status, "missing");
+});
+
+test("nameがhidden入力にしか一致しない場合はidへフォールバックする", () => {
+  const { document } = new JSDOM(
+    '<input type="hidden" name="email"><input type="email" id="email">',
+  ).window;
+  const result = resolveTarget({ kind: "field", value: "email" }, document);
+  assert.ok(result.status === "found", result.status);
+  assert.equal(result.element, document.getElementById("email"));
+});
+
 test("フォーム入力欄同士のnameが重複する場合は引き続きスキップする", () => {
   const { document } = new JSDOM('<meta name="x"><input name="x"><textarea name="x"></textarea>')
     .window;
