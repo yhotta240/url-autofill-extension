@@ -1,5 +1,6 @@
 import { MAX_FIELDS } from "../../content/parser.ts";
 import { generateAutofillUrl } from "../../utils/url-generator.ts";
+import type { CurrentPage } from "./target-check.ts";
 import { createGeneratorItem } from "./url-generator-item.ts";
 
 export function setupUrlGenerator(root: Document = document): void {
@@ -36,6 +37,7 @@ export function setupUrlGenerator(root: Document = document): void {
   let urlEdited = false;
   let interacted = false;
   let revision = 0;
+  let currentPage: CurrentPage | null | undefined;
 
   function render(showErrors = true): void {
     if (!pageUrl || !result || !copy || !error || !copyStatus) return;
@@ -48,6 +50,7 @@ export function setupUrlGenerator(root: Document = document): void {
     error.textContent = "";
     const errors = items.map((item, index) => {
       const message = item.validate(showErrors);
+      item.checkTarget(pageUrl.value, currentPage);
       return message ? `項目${index + 1}：${message}` : "";
     });
 
@@ -90,6 +93,7 @@ export function setupUrlGenerator(root: Document = document): void {
         if (items.length === 1) return;
         const index = items.indexOf(item);
         items.splice(index, 1);
+        item.dispose();
         item.element.remove();
         updateItems();
         render();
@@ -134,18 +138,24 @@ export function setupUrlGenerator(root: Document = document): void {
     if (!pageUrl || !sourceStatus) return;
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (urlEdited) return;
       const url = new URL(tab?.url ?? "");
       if (!["http:", "https:"].includes(url.protocol)) throw new Error("unsupported page");
-      pageUrl.value = tab.url ?? "";
-      sourceStatus.textContent = "";
-      render(interacted);
+      if (tab.id === undefined) {
+        throw new Error("現在のタブIDを取得できません");
+      }
+      currentPage = { tabId: tab.id, url: url.href };
+      if (!urlEdited) {
+        pageUrl.value = tab.url ?? "";
+        sourceStatus.textContent = "";
+      }
     } catch {
-      if (urlEdited) return;
-      sourceStatus.textContent =
-        "現在のページURLを取得できませんでした．対象ページURLを入力してください．";
-      render(interacted);
+      currentPage = null;
+      if (!urlEdited) {
+        sourceStatus.textContent =
+          "現在のページURLを取得できませんでした．対象ページURLを入力してください．";
+      }
     }
+    render(interacted);
   }
 
   addItem(true);

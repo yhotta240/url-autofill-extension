@@ -8,6 +8,7 @@ const html = readFileSync("public/popup.html", "utf8");
 const query = vi.fn();
 const writeText = vi.fn();
 const save = vi.fn();
+const sendMessage = vi.fn();
 
 function items(): HTMLFieldSetElement[] {
   return [...document.querySelectorAll<HTMLFieldSetElement>("[data-generator-item]")];
@@ -50,12 +51,17 @@ async function setup(): Promise<void> {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers();
   const parsed = new DOMParser().parseFromString(html, "text/html");
   document.body.innerHTML = parsed.getElementById("settings")?.outerHTML ?? "";
-  query.mockReset().mockResolvedValue([{ url: "https://example.com/form?q=1#/settings" }]);
+  query.mockReset().mockResolvedValue([{ id: 7, url: "https://example.com/form?q=1#/settings" }]);
   writeText.mockReset().mockResolvedValue(undefined);
   save.mockReset();
-  vi.stubGlobal("chrome", { tabs: { query }, storage: { local: { set: save } } });
+  sendMessage.mockReset().mockResolvedValue({
+    url: "https://example.com/form?q=1#/settings",
+    status: "found",
+  });
+  vi.stubGlobal("chrome", { tabs: { query, sendMessage }, storage: { local: { set: save } } });
   vi.stubGlobal("navigator", { clipboard: { writeText } });
 });
 
@@ -63,6 +69,8 @@ afterEach(() => {
   document.body.replaceChildren();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.clearAllTimers();
+  vi.useRealTimers();
 });
 
 test("現在URLとサンプル値で生成し，自動入力の有効状態を参照せず保存もしない", async () => {
@@ -106,29 +114,29 @@ test("タブ取得に失敗しても手入力で利用できる", async () => {
 });
 
 test("遅れて取得した現在URLで利用者の編集を上書きしない", async () => {
-  let resolveQuery: (tabs: Array<{ url: string }>) => void = () => {};
-  const pending = new Promise<Array<{ url: string }>>((resolve) => {
+  let resolveQuery: (tabs: Array<{ id: number; url: string }>) => void = () => {};
+  const pending = new Promise<Array<{ id: number; url: string }>>((resolve) => {
     resolveQuery = resolve;
   });
   query.mockReturnValue(pending);
   setupUrlGenerator();
   change("generator-page-url", "https://manual.example/form");
-  resolveQuery([{ url: "https://late.example/" }]);
+  resolveQuery([{ id: 7, url: "https://late.example/" }]);
   await pending;
   expect(input("generator-page-url").value).toBe("https://manual.example/form");
   expect(generated()).toContain("https://manual.example/form#url-autofill:");
 });
 
 test("URLの取得が遅れても編集済みの指定欄のエラーを隠さない", async () => {
-  let resolveQuery: (tabs: Array<{ url: string }>) => void = () => {};
-  const pending = new Promise<Array<{ url: string }>>((resolve) => {
+  let resolveQuery: (tabs: Array<{ id: number; url: string }>) => void = () => {};
+  const pending = new Promise<Array<{ id: number; url: string }>>((resolve) => {
     resolveQuery = resolve;
   });
   query.mockReturnValue(pending);
   setupUrlGenerator();
   change("generator-method", "selector");
   change("generator-target", "[");
-  resolveQuery([{ url: "https://example.com/" }]);
+  resolveQuery([{ id: 7, url: "https://example.com/" }]);
   await pending;
   expect(error().hidden).toBe(false);
   expect(error().textContent).toContain("CSSセレクタの構文");
@@ -351,4 +359,52 @@ test("コピー待機中の項目追加・削除でも古い成功表示を出�
   resolveCopy();
   await pending;
   expect(document.getElementById("generator-copy-status")?.textContent).toBe("");
+});
+
+test("現在ページでの確認結果を表示し，値の編集や確認失敗ではURL生成を妨げない", async () => {
+  vi.useFakeTimers();
+  query.mockResolvedValue([{ id: 7, url: "https://example.com/form?q=1#/settings" }]);
+  await setup();
+  const status = items()[0].querySelector<HTMLElement>("[data-target-status]");
+  expect(input("generator-target").getAttribute("aria-describedby")).toContain(status?.id);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(status?.textContent).toBe("見つかりました");
+  expect(sendMessage).toHaveBeenCalledTimes(1);
+
+  change("generator-value", "edited");
+  await vi.advanceTimersByTimeAsync(300);
+  expect(sendMessage).toHaveBeenCalledTimes(1);
+
+  sendMessage.mockResolvedValue({
+    url: "https://example.com/form?q=1#/settings",
+    status: "missing",
+  });
+  change("generator-method", "selector");
+  change("generator-target", "#missing");
+  await vi.advanceTimersByTimeAsync(300);
+  expect(status?.textContent).toBe("現在のページでは見つかりません");
+  expect(button().disabled).toBe(false);
+  expect(generated()).toContain("fill(%23missing)=edited");
+  expect(save).not.toHaveBeenCalled();
+
+  change("generator-page-url", "https://other.example/form");
+  await vi.advanceTimersByTimeAsync(300);
+  expect(status?.textContent).toBe("現在のページとURLが異なるため確認できません");
+  expect(sendMessage).toHaveBeenCalledTimes(2);
+  expect(button().disabled).toBe(false);
+});
+
+test("確認待ちの項目を削除すると問い合わせを止め，他の項目の結果を維持する", async () => {
+  vi.useFakeTimers();
+  query.mockResolvedValue([{ id: 7, url: "https://example.com/form?q=1#/settings" }]);
+  await setup();
+  await vi.advanceTimersByTimeAsync(300);
+  add();
+  change("generator-target", "username", 1);
+  remove(1);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(sendMessage).toHaveBeenCalledTimes(1);
+  expect(items()[0].querySelector("[data-target-status]")?.textContent).toBe("見つかりました");
+  change("generator-target", "");
+  expect(items()[0].querySelector<HTMLElement>("[data-target-status]")?.hidden).toBe(true);
 });

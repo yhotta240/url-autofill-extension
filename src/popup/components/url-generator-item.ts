@@ -1,4 +1,5 @@
 import type { FillEntry, FillTarget } from "../../content/parser.ts";
+import { type CurrentPage, createTargetCheck } from "./target-check.ts";
 
 /** 項目単位で指定方法と入力内容を保持する． */
 export function createGeneratorItem(
@@ -14,9 +15,19 @@ export function createGeneratorItem(
   const method = fragment.querySelector<HTMLSelectElement>("[data-method]");
   const target = fragment.querySelector<HTMLInputElement>("[data-target]");
   const targetText = fragment.querySelector<HTMLElement>("[data-target-text]");
+  const targetStatus = fragment.querySelector<HTMLElement>("[data-target-status]");
   const value = fragment.querySelector<HTMLTextAreaElement>("[data-value]");
   const remove = fragment.querySelector<HTMLButtonElement>("[data-remove]");
-  if (!element || !legend || !method || !target || !targetText || !value || !remove) {
+  if (
+    !element ||
+    !legend ||
+    !method ||
+    !target ||
+    !targetText ||
+    !targetStatus ||
+    !value ||
+    !remove
+  ) {
     throw new Error("URL生成項目のテンプレートが不正です．");
   }
 
@@ -29,6 +40,9 @@ export function createGeneratorItem(
     const label = fragment.querySelector<HTMLLabelElement>(`[data-${name}-label]`);
     if (label) label.htmlFor = control.id;
   }
+  targetStatus.id = `generator-target-status-${id}`;
+  target.setAttribute("aria-describedby", `${targetStatus.id} generator-error`);
+  const targetCheck = createTargetCheck(targetStatus);
   let mode: FillTarget["kind"] = "field";
   const targets = { field: example ? "email" : "", selector: example ? "#email" : "" };
   target.value = targets.field;
@@ -59,6 +73,14 @@ export function createGeneratorItem(
     readEntry(): FillEntry {
       return { target: { kind: mode, value: target.value }, value: value.value };
     },
+    checkTarget(pageUrl: string, page: CurrentPage | null | undefined): void {
+      targetCheck.update(
+        target.validity.valid ? { kind: mode, value: target.value } : null,
+        pageUrl,
+        page,
+      );
+    },
+    dispose: targetCheck.dispose,
     validate(showErrors: boolean): string {
       let message = "";
       if (!target.value.trim()) {

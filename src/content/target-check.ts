@@ -1,0 +1,23 @@
+import { isTargetCheckRequest, type TargetCheckResponse } from "../shared/target-check.ts";
+import { resolveTarget } from "./resolver.ts";
+
+/** 自動入力の有効状態に関係なく，検索結果だけを返す． */
+export function listenForTargetChecks(root: Document): () => void {
+  const view = root.defaultView;
+  if (!view) return () => {};
+
+  const listener: Parameters<typeof chrome.runtime.onMessage.addListener>[0] = (
+    message,
+    _sender,
+    sendResponse,
+  ) => {
+    if (!isTargetCheckRequest(message)) return;
+    sendResponse({
+      url: view.location.href,
+      status: resolveTarget(message.target, root).status,
+    } satisfies TargetCheckResponse);
+  };
+
+  chrome.runtime.onMessage.addListener(listener);
+  return () => chrome.runtime.onMessage.removeListener(listener);
+}
