@@ -226,6 +226,15 @@ html.sidepanel {
   white-space: pre;
 }
 
+#document th,
+#document td {
+  overflow-wrap: anywhere;
+}
+
+#document table.table > :not(caption) > * > * {
+  padding: 0.2rem 0.3rem;
+}
+
 #document blockquote.md-tip {
   border-inline-start-color: var(--bs-success, #198754);
 }

@@ -14,6 +14,7 @@ const MARKDOWN_CLASS_MAP: Record<string, string> = {
   ul: "md-ul",
   ol: "md-ol",
   li: "md-li",
+  table: "table table-bordered table-striped align-middle",
 };
 
 const TIP_BLOCKQUOTE_PATTERN =
