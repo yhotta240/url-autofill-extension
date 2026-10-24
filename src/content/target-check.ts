@@ -1,5 +1,10 @@
+import {
+  isTargetCandidatesRequest,
+  type TargetCandidatesResponse,
+} from "../shared/target-candidates.ts";
 import { isTargetCheckRequest, type TargetCheckResponse } from "../shared/target-check.ts";
 import { resolveTarget } from "./resolver.ts";
+import { getTargetCandidates } from "./target-candidates.ts";
 
 /** 自動入力の有効状態に関係なく，検索結果だけを返す． */
 export function listenForTargetChecks(root: Document): () => void {
@@ -11,6 +16,13 @@ export function listenForTargetChecks(root: Document): () => void {
     _sender,
     sendResponse,
   ) => {
+    if (isTargetCandidatesRequest(message)) {
+      sendResponse({
+        url: view.location.href,
+        candidates: getTargetCandidates(root, message.kind),
+      } satisfies TargetCandidatesResponse);
+      return;
+    }
     if (!isTargetCheckRequest(message)) return;
     sendResponse({
       url: view.location.href,

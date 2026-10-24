@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { MAX_FIELDS, MAX_URL_LENGTH, parseAutofillUrl } from "../src/content/parser.ts";
 import { setupUrlGenerator } from "../src/popup/components/url-generator.ts";
+import { TARGET_CHECK_TYPE } from "../src/shared/target-check.ts";
 
 const html = readFileSync("public/popup.html", "utf8");
 const query = vi.fn();
@@ -403,7 +404,9 @@ test("確認待ちの項目を削除すると問い合わせを止め，他の�
   change("generator-target", "username", 1);
   remove(1);
   await vi.advanceTimersByTimeAsync(300);
-  expect(sendMessage).toHaveBeenCalledTimes(1);
+  expect(
+    sendMessage.mock.calls.filter(([, message]) => message.type === TARGET_CHECK_TYPE),
+  ).toHaveLength(1);
   expect(items()[0].querySelector("[data-target-status]")?.textContent).toBe("見つかりました");
   change("generator-target", "");
   expect(items()[0].querySelector<HTMLElement>("[data-target-status]")?.hidden).toBe(true);

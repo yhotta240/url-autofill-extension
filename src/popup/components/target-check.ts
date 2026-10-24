@@ -4,7 +4,7 @@ import {
   TARGET_CHECK_TYPE,
   type TargetCheckRequest,
 } from "../../shared/target-check.ts";
-import type { CurrentPage } from "../current-page.ts";
+import { type CurrentPage, normalizePageUrl } from "../current-page.ts";
 
 const MESSAGES = {
   checking: "確認中…",
@@ -15,15 +15,6 @@ const MESSAGES = {
   unavailable: "このページでは確認できません",
   "different-page": "現在のページとURLが異なるため確認できません",
 };
-
-function normalizePageUrl(value: string): string | null {
-  try {
-    const url = new URL(value.trim());
-    return ["http:", "https:"].includes(url.protocol) ? url.href : null;
-  } catch {
-    return null;
-  }
-}
 
 /** 項目ごとに入力待ちと応答の世代を管理し，古い結果の表示を防ぐ． */
 export function createTargetCheck(element: HTMLElement) {
