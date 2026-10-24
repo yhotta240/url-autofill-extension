@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { parseAutofillUrl } from "../src/content/parser.ts";
 import { resolveTarget } from "../src/content/resolver.ts";
 import { getTargetCandidates } from "../src/content/target-candidates.ts";
 import { listenForTargetChecks } from "../src/content/target-check.ts";
 import { TARGET_CANDIDATES_TYPE } from "../src/shared/target-candidates.ts";
+import { generateAutofillUrl } from "../src/utils/url-generator.ts";
 
 beforeEach(() => {
   // jsdomにはCSS.escapeがないため，識別子内の特殊文字を16進エスケープする．
@@ -58,6 +60,29 @@ test.each([
   selectors.forEach((selector, index) => {
     expect(document.querySelector(selector)).toBe(controls[index]);
   });
+});
+
+test("fill(で始まるname/idを除外し，代替候補とCSSからURLを生成できる", () => {
+  document.body.innerHTML =
+    '<input name="fill(email)" id="email-id"><input name="message" id="fill(message)"><textarea name="fill(notes)"></textarea><input id="fill(id)"><input name="refill(email)"><input name="Fill(email)">';
+  const fields = getTargetCandidates(document, "field");
+  expect(fields).toEqual(["email-id", "message", "refill(email)", "Fill(email)"]);
+  const controls = [...document.querySelectorAll("input, textarea")];
+  const selectors = getTargetCandidates(document, "selector");
+  expect(selectors).toHaveLength(controls.length);
+  selectors.forEach((selector, index) => {
+    expect(document.querySelector(selector)).toBe(controls[index]);
+  });
+  for (const [kind, values] of [
+    ["field", fields],
+    ["selector", selectors],
+  ] as const) {
+    for (const value of values) {
+      const entry = { target: { kind, value }, value: "test" };
+      const url = generateAutofillUrl(window.location.href, [entry]);
+      expect(parseAutofillUrl(url)?.entries).toEqual([entry]);
+    }
+  }
 });
 
 test("既存の自動入力に対応しない入力欄は両方の候補から除く", () => {
