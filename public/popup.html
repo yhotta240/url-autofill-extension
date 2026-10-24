@@ -92,6 +92,10 @@
       <a class="nav-link p-1 p-md-2 active" id="settings-tab" data-bs-toggle="tab" href="#settings" role="tab"
         aria-controls="settings " aria-selected="true">設定</a>
     </li>
+    <li class="nav-item" role="presentation">
+      <a class="nav-link p-1 p-md-2" id="saved-urls-tab" data-bs-toggle="tab" href="#saved-urls" role="tab"
+        aria-controls="saved-urls" aria-selected="false">一覧</a>
+    </li>
     <li class="nav-item " role="presentation">
       <a class="nav-link p-1 p-md-2" id="document-tab" data-bs-toggle="tab" href="#document" role="tab"
         aria-controls="document" aria-selected="false">ドキュメント</a>
@@ -115,11 +119,16 @@
         <section class="mb-2" id="generator-output" aria-labelledby="generator-output-label">
           <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
             <span id="generator-output-label">生成URL</span>
-            <button type="button" class="btn btn-primary btn-sm" id="generator-copy" disabled>URLをコピー</button>
+            <div class="d-flex align-items-center gap-1">
+              <button type="button" class="btn btn-primary btn-sm" id="generator-copy" disabled>URLをコピー</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="generator-save" disabled>保存</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="generator-cancel" hidden>キャンセル</button>
+            </div>
           </div>
           <pre class="generator-code" tabindex="0" aria-labelledby="generator-output-label" aria-describedby="generator-error"><code id="generator-result"></code></pre>
           <p class="small text-danger mt-1 mb-0" id="generator-error" role="status" hidden></p>
           <p class="small mt-1 mb-0" id="generator-copy-status" role="status"></p>
+          <p class="small mt-1 mb-0" id="generator-save-status" role="status"></p>
         </section>
         <div class="mb-2">
           <label for="generator-page-url" class="form-label">対象ページURL<span class="text-danger ms-1" aria-hidden="true">*</span></label>
@@ -160,6 +169,53 @@
           <span class="small text-body-secondary" id="generator-item-count" role="status"></span>
         </div>
       </form>
+    </div>
+
+    <!-- 保存URL一覧 -->
+    <div class="tab-pane fade mt-2 mx-2" id="saved-urls" role="tabpanel" aria-labelledby="saved-urls-tab" style="margin-bottom: 180px;">
+      <fieldset class="mb-2">
+        <legend class="visually-hidden">表示するURL</legend>
+        <div class="btn-group btn-group-sm">
+          <input type="radio" class="btn-check" name="saved-scope" id="saved-scope-host" value="host" checked disabled>
+          <label class="btn btn-outline-secondary" for="saved-scope-host">現在のホスト</label>
+          <input type="radio" class="btn-check" name="saved-scope" id="saved-scope-all" value="all">
+          <label class="btn btn-outline-secondary" for="saved-scope-all">すべて</label>
+        </div>
+      </fieldset>
+      <label class="form-label small mb-1" for="saved-search">検索</label>
+      <input type="search" class="form-control form-control-sm mb-2" id="saved-search" placeholder="名前・URLで検索" spellcheck="false" autocomplete="off">
+      <p class="small text-body-secondary mb-2" id="saved-source-status" role="status"></p>
+      <p class="small mb-2" id="saved-action-status" role="status"></p>
+      <p class="small text-body-secondary" id="saved-empty" role="status">読み込んでいます…</p>
+      <ul class="list-unstyled mb-0" id="saved-items"></ul>
+      <template id="saved-item-template">
+        <li class="d-flex align-items-center gap-2 py-2 border-bottom">
+          <span class="saved-url-icon flex-shrink-0">
+            <img data-favicon width="16" height="16" alt="" loading="lazy">
+            <svg data-fallback width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true" hidden>
+              <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a18 18 0 0 1 0 18 18 18 0 0 1 0-18"/>
+            </svg>
+          </span>
+          <div class="saved-url-details">
+            <div class="text-truncate fw-medium" data-name></div>
+            <div class="text-truncate small text-body-secondary" data-url></div>
+          </div>
+          <div class="d-flex flex-shrink-0 gap-1">
+            <button type="button" class="btn btn-sm saved-url-action" data-edit aria-label="編集" title="編集">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6L16 3ZM14 5l5 5"/></svg>
+            </button>
+            <button type="button" class="btn btn-sm saved-url-action text-danger" data-delete aria-label="削除" title="削除">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>
+            </button>
+            <button type="button" class="btn btn-sm saved-url-action" data-copy aria-label="URLをコピー" title="URLをコピー">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="1"/><path d="M16 8V3H3v13h5"/></svg>
+            </button>
+            <button type="button" class="btn btn-sm saved-url-action" data-open aria-label="新しいタブで開く" title="新しいタブで開く">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3h7v7M21 3 10 14M10 3H3v18h18v-7"/></svg>
+            </button>
+          </div>
+        </li>
+      </template>
     </div>
 
     <!-- ドキュメント -->

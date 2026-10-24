@@ -24,8 +24,43 @@ html {
   font-weight: 600;
 }
 
-#generator-copy-status:empty {
+#generator-copy-status:empty,
+#generator-save-status:empty,
+#saved-source-status:empty,
+#saved-action-status:empty {
   display: none;
+}
+
+#saved-urls {
+  font-size: 0.875rem;
+}
+
+.saved-url-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.saved-url-icon {
+  width: 1rem;
+  height: 1rem;
+  line-height: 1;
+}
+
+.saved-url-icon [hidden] {
+  display: none;
+}
+
+.saved-url-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+}
+
+.saved-url-action:hover {
+  background: var(--bs-secondary-bg);
 }
 
 .generator-code {

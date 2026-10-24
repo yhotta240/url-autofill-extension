@@ -1,9 +1,13 @@
-import { MAX_FIELDS } from "../../content/parser.ts";
+import { type FillEntry, MAX_FIELDS } from "../../content/parser.ts";
+import { readSavedUrl, type SavedUrl, saveUrl } from "../../utils/saved-urls.ts";
 import { generateAutofillUrl } from "../../utils/url-generator.ts";
-import type { CurrentPage } from "./target-check.ts";
+import { type CurrentPage, getCurrentPage } from "../current-page.ts";
 import { createGeneratorItem } from "./url-generator-item.ts";
 
-export function setupUrlGenerator(root: Document = document): void {
+export function setupUrlGenerator(
+  root: Document = document,
+  options: { currentPage?: Promise<CurrentPage | null>; onUpdated?: () => void } = {},
+) {
   const form = root.querySelector<HTMLFormElement>("#url-generator");
   if (!form) return;
   const pageUrl = form.querySelector<HTMLInputElement>("#generator-page-url");
@@ -17,6 +21,9 @@ export function setupUrlGenerator(root: Document = document): void {
   const error = output?.querySelector<HTMLElement>("#generator-error");
   const sourceStatus = form.querySelector<HTMLElement>("#generator-source-status");
   const copyStatus = output?.querySelector<HTMLElement>("#generator-copy-status");
+  const save = output?.querySelector<HTMLButtonElement>("#generator-save");
+  const cancel = output?.querySelector<HTMLButtonElement>("#generator-cancel");
+  const saveStatus = output?.querySelector<HTMLElement>("#generator-save-status");
   if (
     !pageUrl ||
     !list ||
@@ -28,7 +35,10 @@ export function setupUrlGenerator(root: Document = document): void {
     !copy ||
     !error ||
     !sourceStatus ||
-    !copyStatus
+    !copyStatus ||
+    !save ||
+    !cancel ||
+    !saveStatus
   )
     return;
 
@@ -38,14 +48,24 @@ export function setupUrlGenerator(root: Document = document): void {
   let interacted = false;
   let revision = 0;
   let currentPage: CurrentPage | null | undefined;
+  let editingId: string | undefined;
+  let saving = false;
+  let savedName = "";
+  let baseline = "";
+
+  function snapshot(): string {
+    return JSON.stringify([savedName, pageUrl?.value, items.map((item) => item.readEntry())]);
+  }
 
   function render(showErrors = true): void {
-    if (!pageUrl || !result || !copy || !error || !copyStatus) return;
+    if (!pageUrl || !result || !copy || !error || !copyStatus || !save || !saveStatus) return;
     if (showErrors) interacted = true;
     revision += 1;
     result.textContent = "";
     copy.disabled = true;
+    save.disabled = true;
     copyStatus.textContent = "";
+    saveStatus.textContent = "";
     error.hidden = true;
     error.textContent = "";
     const errors = items.map((item, index) => {
@@ -62,6 +82,7 @@ export function setupUrlGenerator(root: Document = document): void {
         items.map((item) => item.readEntry()),
       );
       copy.disabled = false;
+      save.disabled = saving;
     } catch (failure) {
       if (showErrors) {
         error.textContent =
@@ -83,7 +104,7 @@ export function setupUrlGenerator(root: Document = document): void {
     count.textContent = `${items.length} / ${MAX_FIELDS}項目`;
   }
 
-  function addItem(example = false) {
+  function addItem(initial?: FillEntry) {
     if (!template || !list || items.length >= MAX_FIELDS) return;
     const item = createGeneratorItem(
       template,
@@ -99,7 +120,7 @@ export function setupUrlGenerator(root: Document = document): void {
         render();
         items[Math.min(index, items.length - 1)].target.focus();
       },
-      example,
+      initial,
     );
     items.push(item);
     list.append(item.element);
@@ -134,31 +155,123 @@ export function setupUrlGenerator(root: Document = document): void {
     }
   });
 
+  save.addEventListener("click", async () => {
+    if (save.disabled || !result.textContent) return;
+    const enteredName = root.defaultView?.prompt("保存名を入力してください．", savedName);
+    if (enteredName == null) return;
+    const name = enteredName.trim();
+    if (!name) {
+      saveStatus.textContent = "保存名を入力してください．";
+      return;
+    }
+    savedName = name;
+    saveStatus.textContent = "";
+    saving = true;
+    save.disabled = true;
+    cancel.disabled = true;
+    const savedRevision = revision;
+    const savedSnapshot = snapshot();
+    try {
+      const saved = await saveUrl(result.textContent, name, editingId);
+      baseline = savedSnapshot;
+      if (savedRevision === revision) {
+        saveStatus.textContent = saved.duplicate
+          ? "同じURLがすでに保存されています．"
+          : "保存しました．";
+        if (editingId !== undefined) {
+          editingId = undefined;
+          save.textContent = "保存";
+          cancel.hidden = true;
+          options.onUpdated?.();
+        }
+      }
+    } catch (failure) {
+      if (savedRevision === revision) {
+        saveStatus.textContent =
+          failure instanceof Error ? failure.message : "保存できませんでした．";
+      }
+    } finally {
+      saving = false;
+      save.disabled = !result.textContent;
+      cancel.disabled = false;
+    }
+  });
+
+  function replaceItems(entries: readonly FillEntry[]): void {
+    for (const item of items) item.dispose();
+    items.length = 0;
+    list?.replaceChildren();
+    for (const entry of entries) addItem(entry);
+  }
+
+  const sample: FillEntry = {
+    target: { kind: "field", value: "email" },
+    value: "test@example.com",
+  };
+  cancel.addEventListener("click", () => {
+    editingId = undefined;
+    save.textContent = "保存";
+    cancel.hidden = true;
+    savedName = "";
+    urlEdited = false;
+    interacted = false;
+    pageUrl.value = currentPage?.url ?? "";
+    sourceStatus.textContent =
+      currentPage === null
+        ? "現在のページURLを取得できませんでした．対象ページURLを入力してください．"
+        : "";
+    replaceItems([sample]);
+    render(false);
+    baseline = snapshot();
+  });
+
   async function loadCurrentUrl(): Promise<void> {
     if (!pageUrl || !sourceStatus) return;
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      const url = new URL(tab?.url ?? "");
-      if (!["http:", "https:"].includes(url.protocol)) throw new Error("unsupported page");
-      if (tab.id === undefined) {
-        throw new Error("現在のタブIDを取得できません");
-      }
-      currentPage = { tabId: tab.id, url: url.href };
-      if (!urlEdited) {
-        pageUrl.value = tab.url ?? "";
+    currentPage = await (options.currentPage ?? getCurrentPage());
+    if (!urlEdited) {
+      if (currentPage) {
+        pageUrl.value = currentPage.url;
         sourceStatus.textContent = "";
-      }
-    } catch {
-      currentPage = null;
-      if (!urlEdited) {
+      } else {
         sourceStatus.textContent =
           "現在のページURLを取得できませんでした．対象ページURLを入力してください．";
       }
     }
     render(interacted);
+    if (!interacted) baseline = snapshot();
   }
 
-  addItem(true);
+  addItem(sample);
   render(false);
+  baseline = snapshot();
   void loadCurrentUrl();
+
+  return {
+    edit(item: SavedUrl): boolean {
+      if (saving) return false;
+      if (
+        snapshot() !== baseline &&
+        !root.defaultView?.confirm("未保存の変更を破棄して編集しますか？")
+      ) {
+        return false;
+      }
+      try {
+        const request = readSavedUrl(item.url);
+        urlEdited = true;
+        pageUrl.value = request.cleanUrl;
+        sourceStatus.textContent = "";
+        replaceItems(request.entries);
+        editingId = item.id;
+        savedName = item.name;
+        save.textContent = "更新";
+        cancel.hidden = false;
+        render();
+        baseline = snapshot();
+        return true;
+      } catch {
+        saveStatus.textContent = "保存URLを読み込めませんでした．";
+        return false;
+      }
+    },
+  };
 }

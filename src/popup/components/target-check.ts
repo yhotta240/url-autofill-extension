@@ -4,8 +4,7 @@ import {
   TARGET_CHECK_TYPE,
   type TargetCheckRequest,
 } from "../../shared/target-check.ts";
-
-export type CurrentPage = { tabId: number; url: string };
+import type { CurrentPage } from "../current-page.ts";
 
 const MESSAGES = {
   checking: "確認中…",
