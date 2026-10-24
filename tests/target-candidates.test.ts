@@ -36,6 +36,30 @@ test("曖昧なname/idや別の要素を指すidを除き，一意な代替idは
   expect(getTargetCandidates(document, "field")).toEqual(["first", "second"]);
 });
 
+test.each([
+  "\n",
+  "\r",
+  "\r\n",
+])("改行を含むname/idはCSSでのみ指定でき，有効な代替名は残す: %j", (newline) => {
+  const named = document.createElement("input");
+  named.name = `first${newline}last`;
+  named.id = "safe-id";
+  const identified = document.createElement("textarea");
+  identified.id = `other${newline}id`;
+  identified.name = "safe-name";
+  const similar = document.createElement("input");
+  similar.name = "firstlast";
+  const controls = [named, identified, similar];
+  document.body.append(...controls);
+
+  expect(getTargetCandidates(document, "field")).toEqual(["safe-id", "safe-name", "firstlast"]);
+  const selectors = getTargetCandidates(document, "selector");
+  expect(selectors).toHaveLength(controls.length);
+  selectors.forEach((selector, index) => {
+    expect(document.querySelector(selector)).toBe(controls[index]);
+  });
+});
+
 test("既存の自動入力に対応しない入力欄は両方の候補から除く", () => {
   document.body.innerHTML = `
     <input name="text"><input type="checkbox" name="check"><input type="radio" id="radio">
@@ -89,7 +113,7 @@ test("日本語・予約文字を含むname/idをエスケープし，入力値�
   expect(selectors).toHaveLength(2);
   expect(document.querySelector(selectors[0])).toBe(idInput);
   expect(document.querySelector(selectors[1])).toBe(nameInput);
-  expect(getTargetCandidates(document, "field")).toEqual([idInput.id, nameInput.name]);
+  expect(getTargetCandidates(document, "field")).toEqual([idInput.id]);
   expect(document.body.innerHTML).toBe(before);
   expect(changed).not.toHaveBeenCalled();
   document.removeEventListener("input", changed);

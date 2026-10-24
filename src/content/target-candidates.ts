@@ -49,7 +49,7 @@ export function getTargetCandidates(root: Document, kind: FillTarget["kind"]): s
       continue;
     }
     for (const value of [element.getAttribute("name"), element.id]) {
-      if (!value?.trim() || candidates.has(value)) continue;
+      if (!value?.trim() || /[\r\n]/.test(value) || candidates.has(value)) continue;
       const result = resolveTarget({ kind: "field", value }, root);
       if (result.status === "found" && result.element === element) candidates.add(value);
     }
