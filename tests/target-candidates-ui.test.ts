@@ -107,6 +107,8 @@ test("上下キーで移動し，IME中は確定せずEnterで選択する", asy
   expect(options()[2].getAttribute("aria-selected")).toBe("true");
   key("ArrowDown");
   key("ArrowDown");
+  expect(options()[1].getAttribute("aria-selected")).toBe("true");
+  expect(panel.querySelectorAll('[aria-selected="true"]')).toHaveLength(1);
   expect(key("Enter", true).defaultPrevented).toBe(false);
   expect(input.value).toBe("email");
   expect(key("Enter").defaultPrevented).toBe(true);
