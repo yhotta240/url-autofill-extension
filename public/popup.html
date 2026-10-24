@@ -160,7 +160,13 @@
               </div>
               <div>
                 <label class="form-label" data-target-label><span data-target-text>フィールド名</span><span class="text-danger ms-1" aria-hidden="true">*</span></label>
-                <input type="text" class="form-control form-control-sm" data-target placeholder="email" required aria-describedby="generator-error" spellcheck="false">
+                <div class="generator-target-input">
+                  <input type="text" class="form-control form-control-sm" data-target placeholder="email" required aria-describedby="generator-error" spellcheck="false" autocomplete="off">
+                  <div class="generator-target-candidates" data-target-candidates hidden>
+                    <ul data-candidate-list role="listbox" aria-label="入力先の候補"></ul>
+                    <p data-candidate-status role="status"></p>
+                  </div>
+                </div>
                 <p class="form-text mb-0" data-target-status role="status" hidden></p>
               </div>
               <div class="generator-value-field">

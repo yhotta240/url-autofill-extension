@@ -8,8 +8,10 @@ export type FillResult =
 
 const TEXT_INPUT_TYPES = new Set(["text", "email", "number", "search", "date"]);
 
-/** ネイティブsetterを使い，ページ側の独自setterやクリック処理を実行しない． */
-export function fillElement(element: Element, value: string): FillResult {
+/** 入力値を読まずに，自動入力の対象にできるか判定する． */
+export function getFillBlockReason(
+  element: Element,
+): "unsupported" | "disabled" | "readonly" | null {
   const view = element.ownerDocument.defaultView;
   if (!view) return "unsupported";
 
@@ -28,6 +30,24 @@ export function fillElement(element: Element, value: string): FillResult {
   }
   if (element.matches(":disabled")) return "disabled";
   if ((isInput || isTextarea) && element.readOnly) return "readonly";
+  if (
+    isInput &&
+    !TEXT_INPUT_TYPES.has(element.type) &&
+    !["checkbox", "radio"].includes(element.type)
+  ) {
+    return "unsupported";
+  }
+  return null;
+}
+
+/** ネイティブsetterを使い，ページ側の独自setterやクリック処理を実行しない． */
+export function fillElement(element: Element, value: string): FillResult {
+  const blocked = getFillBlockReason(element);
+  if (blocked) return blocked;
+  const view = element.ownerDocument.defaultView;
+  if (!view) return "unsupported";
+  const isInput = element instanceof view.HTMLInputElement;
+  const isTextarea = element instanceof view.HTMLTextAreaElement;
 
   let property = "value";
   let nextValue: string | boolean = value;
@@ -43,21 +63,20 @@ export function fillElement(element: Element, value: string): FillResult {
       if (value !== "" && value !== element.value) return "invalid-value";
       property = "checked";
       nextValue = value !== "";
-    } else {
-      if (!TEXT_INPUT_TYPES.has(element.type)) return "unsupported";
-      if (element.type === "number" || element.type === "date") {
-        const probe = element.cloneNode(false) as HTMLInputElement;
-        probe.value = value;
-        if (probe.value !== value) return "invalid-value";
-      }
+    } else if (element.type === "number" || element.type === "date") {
+      const probe = element.cloneNode(false) as HTMLInputElement;
+      probe.value = value;
+      if (probe.value !== value) return "invalid-value";
     }
   } else if (isTextarea) {
     prototype = view.HTMLTextAreaElement.prototype;
-  } else {
+  } else if (element instanceof view.HTMLSelectElement) {
     prototype = view.HTMLSelectElement.prototype;
     const option = Array.from(element.options).find((item) => item.value === value);
     if (value !== "" && !option) return "waiting";
     if (option && (option.disabled || option.closest("optgroup[disabled]"))) return "disabled";
+  } else {
+    return "unsupported";
   }
 
   const setter = Object.getOwnPropertyDescriptor(prototype, property)?.set;

@@ -1,5 +1,6 @@
 import type { FillEntry, FillTarget } from "../../content/parser.ts";
 import type { CurrentPage } from "../current-page.ts";
+import { createTargetCandidates } from "./target-candidates.ts";
 import { createTargetCheck } from "./target-check.ts";
 
 /** 項目単位で指定方法と入力内容を保持する． */
@@ -17,6 +18,7 @@ export function createGeneratorItem(
   const target = fragment.querySelector<HTMLInputElement>("[data-target]");
   const targetText = fragment.querySelector<HTMLElement>("[data-target-text]");
   const targetStatus = fragment.querySelector<HTMLElement>("[data-target-status]");
+  const candidates = fragment.querySelector<HTMLElement>("[data-target-candidates]");
   const value = fragment.querySelector<HTMLTextAreaElement>("[data-value]");
   const remove = fragment.querySelector<HTMLButtonElement>("[data-remove]");
   if (
@@ -26,6 +28,7 @@ export function createGeneratorItem(
     !target ||
     !targetText ||
     !targetStatus ||
+    !candidates ||
     !value ||
     !remove
   ) {
@@ -44,6 +47,7 @@ export function createGeneratorItem(
   targetStatus.id = `generator-target-status-${id}`;
   target.setAttribute("aria-describedby", `${targetStatus.id} generator-error`);
   const targetCheck = createTargetCheck(targetStatus);
+  const targetCandidates = createTargetCandidates(target, candidates);
   let mode: FillTarget["kind"] = initial?.target.kind ?? "field";
   const targets = { field: "", selector: initial ? "#email" : "" };
   if (initial) targets[mode] = initial.target.value;
@@ -81,13 +85,17 @@ export function createGeneratorItem(
       return { target: { kind: mode, value: target.value }, value: value.value };
     },
     checkTarget(pageUrl: string, page: CurrentPage | null | undefined): void {
+      targetCandidates.update(mode, pageUrl, page);
       targetCheck.update(
         target.validity.valid ? { kind: mode, value: target.value } : null,
         pageUrl,
         page,
       );
     },
-    dispose: targetCheck.dispose,
+    dispose(): void {
+      targetCheck.dispose();
+      targetCandidates.dispose();
+    },
     validate(showErrors: boolean): string {
       let message = "";
       if (!target.value.trim()) {
