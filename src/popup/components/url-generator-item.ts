@@ -1,5 +1,6 @@
 import type { FillEntry, FillTarget } from "../../content/parser.ts";
-import { type CurrentPage, createTargetCheck } from "./target-check.ts";
+import type { CurrentPage } from "../current-page.ts";
+import { createTargetCheck } from "./target-check.ts";
 
 /** 項目単位で指定方法と入力内容を保持する． */
 export function createGeneratorItem(
@@ -7,7 +8,7 @@ export function createGeneratorItem(
   id: number,
   onChange: () => void,
   onRemove: () => void,
-  example = false,
+  initial?: FillEntry,
 ) {
   const fragment = template.content.cloneNode(true) as DocumentFragment;
   const element = fragment.querySelector<HTMLFieldSetElement>("fieldset");
@@ -43,10 +44,18 @@ export function createGeneratorItem(
   targetStatus.id = `generator-target-status-${id}`;
   target.setAttribute("aria-describedby", `${targetStatus.id} generator-error`);
   const targetCheck = createTargetCheck(targetStatus);
-  let mode: FillTarget["kind"] = "field";
-  const targets = { field: example ? "email" : "", selector: example ? "#email" : "" };
-  target.value = targets.field;
-  value.value = example ? "test@example.com" : "";
+  let mode: FillTarget["kind"] = initial?.target.kind ?? "field";
+  const targets = { field: "", selector: initial ? "#email" : "" };
+  if (initial) targets[mode] = initial.target.value;
+  value.value = initial?.value ?? "";
+
+  const showMethod = (): void => {
+    method.value = mode;
+    target.value = targets[mode];
+    targetText.textContent = mode === "selector" ? "CSSセレクタ" : "フィールド名";
+    target.placeholder = mode === "selector" ? "#email" : "email";
+  };
+  showMethod();
 
   target.addEventListener("input", () => {
     targets[mode] = target.value;
@@ -55,9 +64,7 @@ export function createGeneratorItem(
   value.addEventListener("input", onChange);
   method.addEventListener("change", () => {
     mode = method.value === "selector" ? "selector" : "field";
-    target.value = targets[mode];
-    targetText.textContent = mode === "selector" ? "CSSセレクタ" : "フィールド名";
-    target.placeholder = mode === "selector" ? "#email" : "email";
+    showMethod();
     onChange();
   });
   remove.addEventListener("click", onRemove);
