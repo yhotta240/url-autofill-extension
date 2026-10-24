@@ -23,7 +23,6 @@ export function createTargetCandidates(input: HTMLInputElement, panel: HTMLEleme
   let contextKey = "";
   let revision = 0;
   let open = false;
-  let disposed = false;
   let candidates: string[] = [];
   let visible: string[] = [];
   let filter = "";
@@ -61,8 +60,6 @@ export function createTargetCandidates(input: HTMLInputElement, panel: HTMLEleme
     status.textContent =
       message || (candidates.length ? "一致する候補がありません" : "候補がありません");
     status.hidden = visible.length > 0;
-    panel.hidden = !open;
-    input.setAttribute("aria-expanded", String(open));
     position();
   }
 
@@ -109,8 +106,9 @@ export function createTargetCandidates(input: HTMLInputElement, panel: HTMLEleme
   }
 
   function focus(): void {
-    if (disposed) return;
     open = true;
+    panel.hidden = false;
+    input.setAttribute("aria-expanded", "true");
     filter = "";
     input.ownerDocument.addEventListener("scroll", position, true);
     input.ownerDocument.defaultView?.addEventListener("resize", position);
@@ -120,9 +118,9 @@ export function createTargetCandidates(input: HTMLInputElement, panel: HTMLEleme
   function select(index: number): void {
     const value = visible[index];
     if (value === undefined) return;
+    close();
     input.value = value;
     input.dispatchEvent(new Event("input", { bubbles: true }));
-    close();
   }
 
   function onInput(): void {
@@ -143,16 +141,14 @@ export function createTargetCandidates(input: HTMLInputElement, panel: HTMLEleme
         return;
       }
       if (!visible.length || !list) return;
+      list.children[active]?.setAttribute("aria-selected", "false");
       if (event.key === "ArrowDown") active = (active + 1) % visible.length;
       else if (active <= 0) active = visible.length - 1;
       else active -= 1;
-      for (const [index, option] of [...list.children].entries()) {
-        option.setAttribute("aria-selected", String(index === active));
-        if (index === active) {
-          input.setAttribute("aria-activedescendant", option.id);
-          option.scrollIntoView?.({ block: "nearest" });
-        }
-      }
+      const option = list.children[active];
+      option.setAttribute("aria-selected", "true");
+      input.setAttribute("aria-activedescendant", option.id);
+      option.scrollIntoView?.({ block: "nearest" });
     } else if (event.key === "Enter" && open && active >= 0) {
       event.preventDefault();
       select(active);
@@ -191,12 +187,9 @@ export function createTargetCandidates(input: HTMLInputElement, panel: HTMLEleme
       kind = nextKind;
       pageUrl = nextUrl;
       page = nextPage;
-      candidates = [];
-      revision += 1;
       if (open) void load();
     },
     dispose(): void {
-      disposed = true;
       close();
       input.removeEventListener("focus", focus);
       input.removeEventListener("blur", close);
