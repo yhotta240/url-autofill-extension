@@ -36,6 +36,17 @@ test("非フォーム要素だけのnameに妨げられずidへフォールバ�
   if (result.status === "found") assert.equal(result.element.id, "email");
 });
 
+test("同じnameのhidden入力を除外してメール入力欄を取得する", () => {
+  const { document } = new JSDOM(
+    '<input type="hidden" name="email"><input type="email" name="email">',
+  ).window;
+  const result = resolveTarget({ kind: "field", value: "email" }, document);
+  assert.equal(result.status, "found");
+  if (result.status === "found") {
+    assert.equal(result.element, document.querySelector('input[type="email"]'));
+  }
+});
+
 test("フォーム入力欄同士のnameが重複する場合は引き続きスキップする", () => {
   const { document } = new JSDOM('<meta name="x"><input name="x"><textarea name="x"></textarea>')
     .window;

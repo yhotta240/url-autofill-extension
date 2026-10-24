@@ -20,7 +20,7 @@ export function resolveTarget(target: FillTarget, root: Document): Resolution {
   }
 
   const named = Array.from(root.getElementsByName(target.value)).filter((element) =>
-    element.matches("input, textarea, select"),
+    element.matches("input:not([type=hidden]), textarea, select"),
   );
   // name が曖昧な場合は id へフォールバックしない．
   if (named.length > 0) return unique(named);
