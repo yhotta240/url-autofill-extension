@@ -3,6 +3,7 @@
 
 html {
   font-size: 0.9rem;
+  width: 28rem;
   min-width: 28rem;
 }
 
@@ -118,6 +119,7 @@ html {
 @media (min-width: 768px) {
   html {
     font-size: 1rem !important;
+    width: 100%;
   }
 
   .container-md {
@@ -150,10 +152,34 @@ html {
   transition: none !important;
 }
 
+#popup-body {
+  overflow-x: hidden;
+}
+
 #document blockquote {
   border-inline-start: 0.25rem solid var(--bs-secondary, #6c757d);
   padding: 0.5rem 1rem;
   margin-block: 1rem;
+}
+
+#popup-body pre {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.75rem;
+  margin-block: 1rem;
+  color: var(--bs-body-color);
+  background-color: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  font-size: 0.875em;
+  line-height: 1.5;
+}
+
+#popup-body pre code {
+  color: inherit;
+  font-family: var(--bs-font-monospace);
+  white-space: pre;
 }
 
 #document blockquote.md-tip {
