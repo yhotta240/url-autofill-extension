@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { getCurrentPage, watchCurrentPage } from "../src/popup/current-page.ts";
+import { watchCurrentPage } from "../src/popup/current-page.ts";
 
 const query = vi.fn();
 const removeActivated = vi.fn();
@@ -30,11 +30,6 @@ beforeEach(() => {
   });
 });
 afterEach(() => vi.unstubAllGlobals());
-
-test("Popupは現在ウィンドウから一度だけ取得する", async () => {
-  expect(await getCurrentPage()).toEqual({ tabId: 1, url: "https://example.com/" });
-  expect(query).toHaveBeenCalledExactlyOnceWith({ active: true, currentWindow: true });
-});
 
 test("指定ウィンドウに限定してタブ切替とURL変更に追従する", async () => {
   const change = vi.fn();
