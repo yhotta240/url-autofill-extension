@@ -7,6 +7,15 @@ html {
   min-width: 28rem;
 }
 
+html.sidepanel {
+  width: 100%;
+  min-width: 0;
+}
+
+#display-mode-button[hidden] {
+  display: none;
+}
+
 #generator-output {
   position: sticky;
   inset-block-start: 0;
@@ -242,6 +251,7 @@ html {
 }
 
 #theme-button,
+#display-mode-button,
 #more-button {
   width: 28px;
   height: 28px;
@@ -254,6 +264,7 @@ html {
 }
 
 #theme-button:hover,
+#display-mode-button:hover,
 #more-button:hover {
   background-color: rgba(0, 0, 0, 0.04);
 }

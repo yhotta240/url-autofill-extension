@@ -13,10 +13,13 @@ const get = vi.fn();
 const set = vi.fn();
 const remove = vi.fn();
 const query = vi.fn();
+const sendMessage = vi.fn();
 const createTab = vi.fn();
 const writeText = vi.fn();
 const confirm = vi.fn();
 const prompt = vi.fn();
+let activated: Parameters<typeof chrome.tabs.onActivated.addListener>[0] | undefined;
+let updated: Parameters<typeof chrome.tabs.onUpdated.addListener>[0] | undefined;
 
 function field<T extends HTMLElement = HTMLInputElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -54,6 +57,8 @@ beforeEach(() => {
   document.body.innerHTML = parsed.body.innerHTML;
   data = { enabled: false };
   listeners = [];
+  activated = undefined;
+  updated = undefined;
   get.mockReset().mockImplementation(async () => structuredClone(data));
   set.mockReset().mockImplementation(async (items: Record<string, SavedUrl>) => {
     Object.assign(data, items);
@@ -64,6 +69,7 @@ beforeEach(() => {
     emit(key);
   });
   query.mockReset().mockResolvedValue([{ id: 7, url: currentUrl }]);
+  sendMessage.mockReset().mockResolvedValue({ url: currentUrl, status: "found" });
   createTab.mockReset().mockResolvedValue({ id: 8 });
   writeText.mockReset().mockResolvedValue(undefined);
   confirm.mockReset().mockReturnValue(true);
@@ -72,8 +78,21 @@ beforeEach(() => {
     tabs: {
       query,
       create: createTab,
-      sendMessage: vi.fn().mockResolvedValue({ url: currentUrl, status: "found" }),
+      sendMessage,
+      onActivated: {
+        addListener: (listener: NonNullable<typeof activated>) => {
+          activated = listener;
+        },
+        removeListener: vi.fn(),
+      },
+      onUpdated: {
+        addListener: (listener: NonNullable<typeof updated>) => {
+          updated = listener;
+        },
+        removeListener: vi.fn(),
+      },
     },
+    windows: { getCurrent: vi.fn().mockResolvedValue({ id: 12 }) },
     storage: {
       local: { get, set, remove },
       onChanged: {
@@ -87,11 +106,140 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.dispatchEvent(new Event("pagehide"));
+  window.history.replaceState(null, "", "/form?q=1");
   document.body.replaceChildren();
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+test("サイドパネルは現在ホストと存在確認だけを更新し，編集中のフォームと検索を維持する", async () => {
+  window.history.replaceState(null, "", "/popup.html?view=sidepanel");
+  store(entry("edit"), { ...entry("external", "other.example"), name: "external" });
+  await setup();
+  action("edit").click();
+  change("generator-page-url", "https://other.example/form");
+  const value = document.querySelector<HTMLTextAreaElement>("[data-value]") as HTMLTextAreaElement;
+  value.value = "作業中の値";
+  value.dispatchEvent(new Event("input", { bubbles: true }));
+  const generated = field("generator-result").textContent;
+  change("saved-search", "external");
+  expect(rows()).toHaveLength(0);
+  query.mockResolvedValue([{ id: 8, url: "https://other.example/form" }]);
+  sendMessage.mockResolvedValue({
+    url: "https://other.example/form",
+    status: "found",
+  });
+  activated?.({ tabId: 8, windowId: 12 });
+  await flush();
+  expect(rows()).toHaveLength(1);
+  expect(field<HTMLInputElement>("saved-search").value).toBe("external");
+  expect(field<HTMLInputElement>("generator-page-url").value).toBe("https://other.example/form");
+  expect(value.value).toBe("作業中の値");
+  expect(field("generator-result").textContent).toBe(generated);
+  expect(field("generator-save").textContent).toBe("更新");
+  await vi.advanceTimersByTimeAsync(300);
+  expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+    8,
+    expect.objectContaining({ type: "url-autofill:check-target" }),
+    { frameId: 0 },
+  );
+  expect(document.querySelector("[data-target-status]")?.textContent).toBe("見つかりました");
+  query.mockResolvedValue([{ id: 8, url: "chrome://settings/" }]);
+  updated?.(8, { url: "chrome://settings/" }, {
+    id: 8,
+    windowId: 12,
+    active: true,
+  } as chrome.tabs.Tab);
+  await flush();
+  expect(field<HTMLInputElement>("saved-scope-all").checked).toBe(true);
+  expect(field<HTMLInputElement>("saved-scope-host").disabled).toBe(true);
+  expect(field("generator-result").textContent).toBe(generated);
+  expect(document.querySelector("[data-target-status]")?.textContent).toBe(
+    "このページでは確認できません",
+  );
+});
+
+test("通常のPopupではページ変更の監視を追加しない", async () => {
+  await setup();
+  expect(activated).toBeUndefined();
+  expect(updated).toBeUndefined();
+});
+
+test("サイドパネルの自動取得URLはタブとURLの変更に追従し，入力値は維持する", async () => {
+  window.history.replaceState(null, "", "/popup.html?view=sidepanel");
+  await setup();
+  const value = document.querySelector<HTMLTextAreaElement>("[data-value]") as HTMLTextAreaElement;
+  value.value = "保持する値";
+  value.dispatchEvent(new Event("input", { bubbles: true }));
+  query.mockResolvedValue([{ id: 8, url: "https://other.example/form" }]);
+  activated?.({ tabId: 8, windowId: 12 });
+  await flush();
+  expect(field<HTMLInputElement>("generator-page-url").value).toBe("https://other.example/form");
+  expect(value.value).toBe("保持する値");
+  expect(field("generator-result").textContent).toBe(
+    `https://other.example/form#url-autofill:email=${encodeURIComponent("保持する値")}`,
+  );
+  query.mockResolvedValue([{ id: 8, url: "https://other.example/next" }]);
+  updated?.(8, { url: "https://other.example/next" }, {
+    id: 8,
+    windowId: 12,
+    active: true,
+  } as chrome.tabs.Tab);
+  await flush();
+  expect(field<HTMLInputElement>("generator-page-url").value).toBe("https://other.example/next");
+  query.mockResolvedValue([{ id: 8, url: "chrome://settings/" }]);
+  updated?.(8, { url: "chrome://settings/" }, {
+    id: 8,
+    windowId: 12,
+    active: true,
+  } as chrome.tabs.Tab);
+  await flush();
+  expect(field<HTMLInputElement>("generator-page-url").value).toBe("");
+  expect(field<HTMLButtonElement>("generator-copy").disabled).toBe(true);
+  expect(value.value).toBe("保持する値");
+});
+
+test("手入力した対象URLは別のタブへ移っても上書きしない", async () => {
+  window.history.replaceState(null, "", "/popup.html?view=sidepanel");
+  await setup();
+  change("generator-page-url", "https://manual.example/form");
+  query.mockResolvedValue([{ id: 8, url: "https://other.example/form" }]);
+  activated?.({ tabId: 8, windowId: 12 });
+  await flush();
+  expect(field<HTMLInputElement>("generator-page-url").value).toBe("https://manual.example/form");
+});
+
+test.each([
+  false,
+  true,
+])("読み込み完了後は同じURLの対象を再確認し，フォームとコピー結果を維持する: 手入力=%s", async (manual) => {
+  window.history.replaceState(null, "", "/popup.html?view=sidepanel");
+  sendMessage.mockResolvedValue({ url: currentUrl, status: "missing" });
+  await setup();
+  if (manual) change("generator-page-url", currentUrl);
+  const value = document.querySelector<HTMLTextAreaElement>("[data-value]") as HTMLTextAreaElement;
+  value.value = "入力中の値";
+  value.dispatchEvent(new Event("input", { bubbles: true }));
+  await vi.advanceTimersByTimeAsync(300);
+  expect(document.querySelector("[data-target-status]")?.textContent).toBe(
+    "現在のページでは見つかりません",
+  );
+  const generated = field("generator-result").textContent;
+  field("generator-copy").click();
+  await flush();
+  expect(field("generator-copy-status").textContent).toBe("コピーしました．");
+  sendMessage.mockResolvedValue({ url: currentUrl, status: "found" });
+  updated?.(7, { status: "complete" }, { id: 7, active: true, windowId: 12 } as chrome.tabs.Tab);
+  await flush();
+  await vi.advanceTimersByTimeAsync(300);
+  expect(document.querySelector("[data-target-status]")?.textContent).toBe("見つかりました");
+  expect(sendMessage).toHaveBeenCalledTimes(2);
+  expect(value.value).toBe("入力中の値");
+  expect(field("generator-result").textContent).toBe(generated);
+  expect(field("generator-copy-status").textContent).toBe("コピーしました．");
 });
 
 test("現在タブを一度だけ取得し，現在ホストをポートも含めて絞り込む", async () => {

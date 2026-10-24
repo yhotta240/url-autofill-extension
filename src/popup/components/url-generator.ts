@@ -225,20 +225,26 @@ export function setupUrlGenerator(
     baseline = snapshot();
   });
 
-  async function loadCurrentUrl(): Promise<void> {
-    if (!pageUrl || !sourceStatus) return;
-    currentPage = await (options.currentPage ?? getCurrentPage());
+  const updateCurrentPage = (page: CurrentPage | null): void => {
+    currentPage = page;
     if (!urlEdited) {
-      if (currentPage) {
-        pageUrl.value = currentPage.url;
-        sourceStatus.textContent = "";
-      } else {
-        sourceStatus.textContent =
-          "現在のページURLを取得できませんでした．対象ページURLを入力してください．";
+      sourceStatus.textContent = page
+        ? ""
+        : "現在のページURLを取得できませんでした．対象ページURLを入力してください．";
+      const nextUrl = page?.url ?? "";
+      if (pageUrl.value !== nextUrl) {
+        const wasClean = snapshot() === baseline;
+        pageUrl.value = nextUrl;
+        render(interacted);
+        if (wasClean) baseline = snapshot();
+        return;
       }
     }
-    render(interacted);
-    if (!interacted) baseline = snapshot();
+    for (const item of items) item.checkTarget(pageUrl.value, page);
+  };
+
+  async function loadCurrentUrl(): Promise<void> {
+    updateCurrentPage(await (options.currentPage ?? getCurrentPage()));
   }
 
   addItem(sample);
@@ -247,6 +253,7 @@ export function setupUrlGenerator(
   void loadCurrentUrl();
 
   return {
+    updateCurrentPage,
     edit(item: SavedUrl): boolean {
       if (saving) return false;
       if (
