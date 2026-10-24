@@ -80,6 +80,22 @@ test("背景タブの変更と同じページの重複通知を無視する", as
   watcher.dispose();
 });
 
+test("同じタブとURLでも読み込み完了を通知し，再読み込みごとに確認を更新できる", async () => {
+  const change = vi.fn();
+  const watcher = watchCurrentPage(12, change);
+  await watcher.initial;
+  const tab = { id: 1, active: true, windowId: 12 } as chrome.tabs.Tab;
+  updated(1, { status: "complete" }, tab);
+  await vi.waitFor(() => expect(change).toHaveBeenCalledOnce());
+  const first = change.mock.calls[0][0];
+  expect(first).toMatchObject({ tabId: 1, url: "https://example.com/" });
+  expect(first.documentVersion).toBeTypeOf("number");
+  updated(1, { status: "complete" }, tab);
+  await vi.waitFor(() => expect(change).toHaveBeenCalledTimes(2));
+  expect(change.mock.calls[1][0].documentVersion).not.toBe(first.documentVersion);
+  watcher.dispose();
+});
+
 test("初回取得より新しい取得結果を優先し，遅れた応答と終了後の応答を破棄する", async () => {
   let oldResponse: (tabs: Array<{ id: number; url: string }>) => void = () => {};
   query.mockReturnValueOnce(

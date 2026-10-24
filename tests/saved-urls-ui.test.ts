@@ -212,6 +212,36 @@ test("手入力した対象URLは別のタブへ移っても上書きしない",
   expect(field<HTMLInputElement>("generator-page-url").value).toBe("https://manual.example/form");
 });
 
+test.each([
+  false,
+  true,
+])("読み込み完了後は同じURLの対象を再確認し，フォームとコピー結果を維持する: 手入力=%s", async (manual) => {
+  window.history.replaceState(null, "", "/popup.html?view=sidepanel");
+  sendMessage.mockResolvedValue({ url: currentUrl, status: "missing" });
+  await setup();
+  if (manual) change("generator-page-url", currentUrl);
+  const value = document.querySelector<HTMLTextAreaElement>("[data-value]") as HTMLTextAreaElement;
+  value.value = "入力中の値";
+  value.dispatchEvent(new Event("input", { bubbles: true }));
+  await vi.advanceTimersByTimeAsync(300);
+  expect(document.querySelector("[data-target-status]")?.textContent).toBe(
+    "現在のページでは見つかりません",
+  );
+  const generated = field("generator-result").textContent;
+  field("generator-copy").click();
+  await flush();
+  expect(field("generator-copy-status").textContent).toBe("コピーしました．");
+  sendMessage.mockResolvedValue({ url: currentUrl, status: "found" });
+  updated?.(7, { status: "complete" }, { id: 7, active: true, windowId: 12 } as chrome.tabs.Tab);
+  await flush();
+  await vi.advanceTimersByTimeAsync(300);
+  expect(document.querySelector("[data-target-status]")?.textContent).toBe("見つかりました");
+  expect(sendMessage).toHaveBeenCalledTimes(2);
+  expect(value.value).toBe("入力中の値");
+  expect(field("generator-result").textContent).toBe(generated);
+  expect(field("generator-copy-status").textContent).toBe("コピーしました．");
+});
+
 test("現在タブを一度だけ取得し，現在ホストをポートも含めて絞り込む", async () => {
   store(
     entry("older"),

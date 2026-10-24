@@ -74,6 +74,27 @@ test("入力変更後に届いた古い結果で新しい結果を上書きし�
   expect(status.textContent).toBe("現在のページでは見つかりません");
 });
 
+test("同じ指定でも読み込み完了後は再確認し，前の文書からの応答を破棄する", async () => {
+  let oldReply: (response: unknown) => void = () => {};
+  sendMessage.mockReturnValueOnce(
+    new Promise((resolve) => {
+      oldReply = resolve;
+    }),
+  );
+  check.update(email, url, page);
+  await vi.advanceTimersByTimeAsync(300);
+  check.update(email, url, { ...page, documentVersion: 1 });
+  await vi.advanceTimersByTimeAsync(300);
+  expect(sendMessage).toHaveBeenCalledTimes(2);
+  expect(status.textContent).toBe("見つかりました");
+  oldReply({ url, status: "missing" });
+  await Promise.resolve();
+  expect(status.textContent).toBe("見つかりました");
+  check.update(email, url, { ...page, documentVersion: 1 });
+  await vi.advanceTimersByTimeAsync(300);
+  expect(sendMessage).toHaveBeenCalledTimes(2);
+});
+
 test("別のURLでは問い合わせず，確認中にページが変わった場合も一致と表示しない", async () => {
   check.update(email, "https://other.example/", page);
   await vi.advanceTimersByTimeAsync(300);

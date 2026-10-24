@@ -1,4 +1,4 @@
-export type CurrentPage = { tabId: number; url: string };
+export type CurrentPage = { tabId: number; url: string; documentVersion?: number };
 
 export async function getCurrentPage(windowId?: number): Promise<CurrentPage | null> {
   try {
@@ -23,13 +23,15 @@ export function watchCurrentPage(windowId: number, onChange: (page: CurrentPage 
   const initial = new Promise<CurrentPage | null>((resolve) => {
     resolveInitial = resolve;
   });
-  const refresh = async (): Promise<void> => {
+  const refresh = async (documentLoaded = false): Promise<void> => {
     const request = ++version;
     const page = await getCurrentPage(windowId);
     if (request !== version) return;
     const key = JSON.stringify(page);
-    if (key === lastKey) return;
+    if (key === lastKey && !documentLoaded) return;
     lastKey = key;
+    // 同じURLでも読み込み完了ごとに要素確認のキャッシュを更新する．
+    if (page && documentLoaded) page.documentVersion = request;
     if (resolveInitial) {
       resolveInitial(page);
       resolveInitial = undefined;
@@ -48,7 +50,7 @@ export function watchCurrentPage(windowId: number, onChange: (page: CurrentPage 
       tab.active &&
       (change.url !== undefined || change.status === "complete")
     ) {
-      void refresh();
+      void refresh(change.status === "complete");
     }
   };
   chrome.tabs.onActivated.addListener(activated);

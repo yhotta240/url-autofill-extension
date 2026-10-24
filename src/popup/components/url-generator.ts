@@ -228,16 +228,19 @@ export function setupUrlGenerator(
   const updateCurrentPage = (page: CurrentPage | null): void => {
     currentPage = page;
     if (!urlEdited) {
-      const wasClean = snapshot() === baseline;
-      pageUrl.value = page?.url ?? "";
       sourceStatus.textContent = page
         ? ""
         : "現在のページURLを取得できませんでした．対象ページURLを入力してください．";
-      render(interacted);
-      if (wasClean) baseline = snapshot();
-    } else {
-      for (const item of items) item.checkTarget(pageUrl.value, page);
+      const nextUrl = page?.url ?? "";
+      if (pageUrl.value !== nextUrl) {
+        const wasClean = snapshot() === baseline;
+        pageUrl.value = nextUrl;
+        render(interacted);
+        if (wasClean) baseline = snapshot();
+        return;
+      }
     }
+    for (const item of items) item.checkTarget(pageUrl.value, page);
   };
 
   async function loadCurrentUrl(): Promise<void> {
