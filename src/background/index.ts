@@ -1,4 +1,7 @@
 import { logInfo } from "../utils/logger";
+import { setupDisplayMode } from "./display-mode.ts";
+
+setupDisplayMode();
 
 console.log("background script");
 

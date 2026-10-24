@@ -9,7 +9,7 @@ import type { CurrentPage } from "../current-page.ts";
 export function setupSavedUrlList(
   root: Document,
   options: { currentPage: Promise<CurrentPage | null>; onEdit: (item: SavedUrl) => void },
-): void {
+) {
   const list = root.querySelector<HTMLElement>("#saved-items");
   const template = root.querySelector<HTMLTemplateElement>("#saved-item-template");
   const search = root.querySelector<HTMLInputElement>("#saved-search");
@@ -152,8 +152,11 @@ export function setupSavedUrlList(
     }
   });
 
-  const loadHost = async (): Promise<void> => {
-    const page = await options.currentPage;
+  const updateCurrentPage = (page: CurrentPage | null): void => {
+    currentHost = null;
+    hostScope.disabled = true;
+    hostScope.title = "";
+    sourceStatus.textContent = "";
     if (page) {
       currentHost = new URL(page.url).host;
       hostScope.disabled = false;
@@ -164,6 +167,10 @@ export function setupSavedUrlList(
     }
     render();
   };
+  const loadHost = async (): Promise<void> => {
+    updateCurrentPage(await options.currentPage);
+  };
   void loadHost();
   void load();
+  return { updateCurrentPage };
 }

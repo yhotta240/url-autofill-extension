@@ -9,6 +9,7 @@ import {
   type LogLevel,
 } from "../utils/logger";
 import { getSettings, isEnabled, setEnabled, setSettings } from "../utils/storage";
+import { setupDisplayModeSwitch } from "./components/display-mode.ts";
 import { setupDocumentTab } from "./components/document";
 import { setupInfoTab } from "./components/info";
 import { setupMoreMenu } from "./components/menu";
@@ -170,7 +171,8 @@ export class PopupManager {
     }
 
     setupMoreMenu();
-    setupUrlLibrary();
+    void setupDisplayModeSwitch();
+    void setupUrlLibrary();
     setupInfoTab(this.manifestData, this.manifestMetadata);
     setupDocumentTab();
     setupVersionTab(this.manifestData.version);

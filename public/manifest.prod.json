@@ -9,8 +9,10 @@
   },
   "permissions": [
     "storage",
-    "activeTab"
+    "tabs",
+    "sidePanel"
   ],
+  "side_panel": { "default_path": "popup.html?view=sidepanel" },
   "action": {
     "default_popup": "popup.html"
   },
