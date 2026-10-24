@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, type Mock, test, vi } from "vitest";
 import { PopupManager } from "../src/popup/manager.ts";
 import { LOG_STORAGE_KEY, type LogEntry } from "../src/utils/logger.ts";
 
@@ -8,12 +8,16 @@ vi.mock("../src/popup/components/info.ts", () => ({ setupInfoTab() {} }));
 vi.mock("../src/popup/components/version.ts", () => ({ setupVersionTab() {} }));
 
 type ChangeListener = Parameters<typeof chrome.storage.onChanged.addListener>[0];
+type StorageCallback = (data: Record<string, unknown>) => void;
 let listener: ChangeListener;
 let storedLogs: LogEntry[];
+let readEnabled: Mock<(callback: StorageCallback) => void>;
 
 beforeEach(() => {
   storedLogs = [];
+  readEnabled = vi.fn((callback) => callback({ enabled: false }));
   document.body.innerHTML = `
+    <input type="checkbox" id="enabled">
     <div id="header"></div><div id="tab-menu"></div>
     <button id="maximize-button"></button><button id="minimize-button"></button>
     <button id="close-button"></button><button id="panel-button"></button>
@@ -23,9 +27,14 @@ beforeEach(() => {
     runtime: { getManifest: () => ({ name: "URL AutoFill", short_name: "URL AutoFill" }) },
     storage: {
       local: {
-        get: (_key: string, callback: (data: Record<string, unknown>) => void) => {
+        get: (key: string, callback: StorageCallback) => {
+          if (key === "enabled") {
+            readEnabled(callback);
+            return;
+          }
           callback({ [LOG_STORAGE_KEY]: storedLogs, settings: {}, enabled: false });
         },
+        set: vi.fn(),
       },
       onChanged: {
         addListener: vi.fn((callback: ChangeListener) => {
@@ -54,6 +63,7 @@ function messages(): string[] {
 async function setup(): Promise<void> {
   new PopupManager();
   await vi.waitFor(() => expect(chrome.storage.onChanged.addListener).toHaveBeenCalledOnce());
+  await vi.waitFor(() => expect(readEnabled).toHaveBeenCalledOnce());
 }
 
 test("200件到達後も新規ログを表示し，古いログを取り除く", async () => {
@@ -80,4 +90,34 @@ test("非表示ログを除外し，別設定では表示を変えず，ログ�
   expect(messages()).toEqual(["新規ログ"]);
   listener({ [LOG_STORAGE_KEY]: { oldValue: updated } }, "local");
   expect(messages()).toEqual([]);
+});
+
+test("別画面での有効・無効の変更と削除を反映し，保存やログ追加は行わない", async () => {
+  await setup();
+  const checkbox = document.getElementById("enabled") as HTMLInputElement;
+
+  listener({ enabled: { newValue: true } }, "sync");
+  expect(checkbox.checked).toBe(false);
+  listener({ enabled: { newValue: true } }, "local");
+  expect(checkbox.checked).toBe(true);
+  listener({ enabled: { newValue: false } }, "local");
+  expect(checkbox.checked).toBe(false);
+  listener({ enabled: { newValue: true } }, "local");
+  listener({ enabled: { oldValue: true } }, "local");
+  expect(checkbox.checked).toBe(false);
+  expect(chrome.storage.local.set).not.toHaveBeenCalled();
+  expect(messages()).toEqual([]);
+});
+
+test.each([true, false])("初期読み込み中に届いた変更（%s）を優先する", async (enabled) => {
+  let finishRead!: StorageCallback;
+  readEnabled.mockImplementation((callback) => {
+    finishRead = callback;
+  });
+  await setup();
+
+  listener({ enabled: { newValue: enabled } }, "local");
+  finishRead({ enabled: !enabled });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect((document.getElementById("enabled") as HTMLInputElement).checked).toBe(enabled);
 });

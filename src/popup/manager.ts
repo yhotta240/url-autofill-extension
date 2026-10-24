@@ -23,6 +23,7 @@ import type { ManifestMetadata, SharePlatform, Theme } from "./types";
 export class PopupManager {
   private panel: PopupPanel;
   private enabled: boolean = false;
+  private enabledChanged = false;
   private settings: Settings = DEFAULT_SETTINGS;
   private manifestData: chrome.runtime.Manifest;
   private manifestMetadata: ManifestMetadata;
@@ -54,25 +55,34 @@ export class PopupManager {
       if (logs.length > 0) {
         this.panel.loadLogs(logs, this.manifestMetadata.issues_url);
       }
-      this.watchStorageLogs();
+      this.watchStorage();
     } catch (err) {
       console.error("ログ読み込みエラー", err);
-      this.watchStorageLogs();
+      this.watchStorage();
     }
 
     try {
       this.settings = await getSettings();
-      this.enabled = await isEnabled();
-      if (this.enabledElement) this.enabledElement.checked = this.enabled;
+      const enabled = await isEnabled();
+      if (!this.enabledChanged) {
+        this.enabled = enabled;
+        if (this.enabledElement) this.enabledElement.checked = enabled;
+      }
     } catch (err) {
       console.error("error", err);
       await this.showLog("設定の読み込みに失敗しました", "error", err);
     }
   }
 
-  private watchStorageLogs(): void {
+  private watchStorage(): void {
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === "local" && changes[LOG_STORAGE_KEY]) {
+      if (area !== "local") return;
+      if (changes.enabled) {
+        this.enabledChanged = true;
+        this.enabled = changes.enabled.newValue === true;
+        if (this.enabledElement) this.enabledElement.checked = this.enabled;
+      }
+      if (changes[LOG_STORAGE_KEY]) {
         const rawEntries = changes[LOG_STORAGE_KEY]?.newValue;
         const entries: LogEntry[] = Array.isArray(rawEntries) ? rawEntries : [];
         this.panel.loadLogs(entries, this.manifestMetadata.issues_url);
