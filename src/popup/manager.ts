@@ -50,47 +50,31 @@ export class PopupManager {
 
     try {
       const logs = await getLogs();
-      const visibleCount = logs.filter((e) => !e.hidden).length;
       if (logs.length > 0) {
         this.panel.loadLogs(logs, this.manifestMetadata.issues_url);
       }
-      this.watchStorageLogs(visibleCount);
+      this.watchStorageLogs();
     } catch (err) {
       console.error("ログ読み込みエラー", err);
-      this.watchStorageLogs(0);
+      this.watchStorageLogs();
     }
 
     try {
       this.settings = await getSettings();
       this.enabled = await isEnabled();
       if (this.enabledElement) this.enabledElement.checked = this.enabled;
-      await this.showLog(
-        `${this.manifestData.short_name} は現在 ${this.enabled ? "有効" : "無効"} です`,
-      );
     } catch (err) {
       console.error("error", err);
       await this.showLog("設定の読み込みに失敗しました", "error", err);
     }
   }
 
-  private watchStorageLogs(knownLength: number): void {
-    let currentLength = knownLength;
+  private watchStorageLogs(): void {
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === "local" && changes[LOG_STORAGE_KEY]) {
         const rawEntries = changes[LOG_STORAGE_KEY]?.newValue;
         const entries: LogEntry[] = Array.isArray(rawEntries) ? rawEntries : [];
-        const visible = entries.filter((e) => !e.hidden);
-        const newEntries = visible.slice(currentLength);
-        for (const entry of newEntries) {
-          this.panel.messageOutput(
-            entry.message,
-            entry.timestamp,
-            entry.level,
-            entry.source,
-            this.manifestMetadata.issues_url,
-          );
-        }
-        currentLength = visible.length;
+        this.panel.loadLogs(entries, this.manifestMetadata.issues_url);
       }
     });
   }
