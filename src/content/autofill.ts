@@ -1,3 +1,5 @@
+import { getEditingHost, isEditableElement, setEditableText } from "./editable.ts";
+
 export type FillResult =
   | "filled"
   | "waiting"
@@ -18,17 +20,25 @@ export function getFillBlockReason(
   const isInput = element instanceof view.HTMLInputElement;
   const isTextarea = element instanceof view.HTMLTextAreaElement;
   const isSelect = element instanceof view.HTMLSelectElement;
-  if (!isInput && !isTextarea && !isSelect) return "unsupported";
+  const isEditable = isEditableElement(element);
+  if (!isInput && !isTextarea && !isSelect && !isEditable) return "unsupported";
 
-  const autocomplete = (element.getAttribute("autocomplete") ?? "").toLowerCase().split(/\s+/);
-  if (
-    autocomplete.some(
-      (token) => token.includes("password") || token === "one-time-code" || token.startsWith("cc-"),
+  let host: Element = element;
+  if (isEditable) host = getEditingHost(element);
+  for (let field: Element | null = element; field; field = field.parentElement) {
+    const autocomplete = (field.getAttribute("autocomplete") ?? "").toLowerCase().split(/\s+/);
+    if (
+      autocomplete.some(
+        (token) =>
+          token.includes("password") || token === "one-time-code" || token.startsWith("cc-"),
+      )
     )
-  ) {
-    return "unsupported";
+      return "unsupported";
+    if (field === host) break;
   }
   if (element.matches(":disabled")) return "disabled";
+  if (isEditable && element.closest('[aria-disabled="true"], [inert]')) return "disabled";
+  if (isEditable && element.closest('[aria-readonly="true"]')) return "readonly";
   if ((isInput || isTextarea) && element.readOnly) return "readonly";
   if (
     isInput &&
@@ -46,6 +56,20 @@ export function fillElement(element: Element, value: string): FillResult {
   if (blocked) return blocked;
   const view = element.ownerDocument.defaultView;
   if (!view) return "unsupported";
+  if (isEditableElement(element)) {
+    setEditableText(element, value);
+    const host = getEditingHost(element);
+    host.dispatchEvent(
+      new view.InputEvent("input", {
+        bubbles: true,
+        composed: true,
+        inputType: "insertText",
+        data: value,
+      }),
+    );
+    host.dispatchEvent(new view.Event("change", { bubbles: true }));
+    return "filled";
+  }
   const isInput = element instanceof view.HTMLInputElement;
   const isTextarea = element instanceof view.HTMLTextAreaElement;
 

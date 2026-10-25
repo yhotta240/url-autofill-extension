@@ -1,3 +1,5 @@
+import { isEditableElement } from "./editable.ts";
+
 export type Resolution =
   | { status: "found"; kind: "element"; element: Element }
   | { status: "found"; kind: "radio-group"; elements: HTMLInputElement[] }
@@ -39,7 +41,7 @@ function resolveCandidates(elements: ArrayLike<Element>): Resolution {
     return { status: "ambiguous" };
   }
   const element = candidates[0];
-  if (element.matches("input, textarea, select, button")) {
+  if (element.matches("input, textarea, select, button") || isEditableElement(element)) {
     return { status: "found", kind: "element", element };
   }
   return radioGroup(

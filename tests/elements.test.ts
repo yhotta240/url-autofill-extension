@@ -161,7 +161,7 @@ test("対応input型と空文字を設定し，不正な数値・日付では既
 
 test("機密欄，未対応要素，disabled/readonlyを変更しない", () => {
   const { document } = new JSDOM(
-    `<input type="password"><input type="file"><input type="hidden" value="token"><input type="submit"><input autocomplete="one-time-code"><textarea autocomplete="cc-number"></textarea><fieldset disabled><input></fieldset><input readonly><div contenteditable></div>`,
+    `<input type="password"><input type="file"><input type="hidden" value="token"><input type="submit"><input autocomplete="one-time-code"><textarea autocomplete="cc-number"></textarea><fieldset disabled><input></fieldset><input readonly><div contenteditable="false"></div>`,
   ).window;
   for (const element of document.querySelectorAll("input, textarea, div")) {
     assert.notEqual(fillElement(element, "secret"), "filled");

@@ -1,4 +1,5 @@
 import type { TargetInfo } from "../shared/target-check.ts";
+import { isEditableElement } from "./editable.ts";
 import type { Resolution } from "./resolver.ts";
 
 function normalize(text: string): string {
@@ -14,6 +15,7 @@ function labelText(element: Element | null, includeHidden = false): string {
   let text = "";
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const parent = node.parentElement;
+    if (parent && isEditableElement(parent)) continue;
     if (parent?.closest("input, textarea, select, script, style")) continue;
     if (!includeHidden && parent?.closest('[hidden], [aria-hidden="true"]')) continue;
     text += node.textContent ?? "";
@@ -35,7 +37,9 @@ function getLabel(element: Element): string {
   const labelled = Array.from(labels ?? [], (label) => labelText(label))
     .filter(Boolean)
     .join(" ");
-  return labelled || (element.localName === "button" ? labelText(element) : "");
+  if (labelled) return labelled;
+  if (element.localName === "button" && !isEditableElement(element)) return labelText(element);
+  return "";
 }
 
 /** 入力値・選択状態を参照せず，解決された入力先のラベルとDOM上の型を返す． */
@@ -55,11 +59,13 @@ export function getTargetInfo(result: Resolution): TargetInfo | undefined {
   const element = result.element;
   const view = element.ownerDocument.defaultView;
   if (!view) return;
-  const type =
+  const label = getLabel(element);
+  if (isEditableElement(element)) return { label, type: "contenteditable" };
+  if (
     element instanceof view.HTMLInputElement ||
     element instanceof view.HTMLSelectElement ||
     element instanceof view.HTMLButtonElement
-      ? element.type
-      : element.localName;
-  return { label: getLabel(element), type };
+  )
+    return { label, type: element.type };
+  return { label, type: element.localName };
 }
