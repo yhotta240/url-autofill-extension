@@ -53,27 +53,49 @@ export function createGeneratorItem(
   radioOutput.id = `generator-radio-output-${id}`;
   valueSelect.setAttribute("aria-describedby", "generator-error");
   let radioError = "";
-  const valueInput = createValueInput(value, valueSelect, radioOutput, valueLabel, onChange, () =>
-    targetCheck.refresh(),
+  let canReadValue = initial === undefined;
+  const onValueChange = () => {
+    canReadValue = false;
+    onChange();
+  };
+  const onValueSelection = () => {
+    canReadValue = false;
+  };
+  const valueInput = createValueInput(
+    value,
+    valueSelect,
+    radioOutput,
+    valueLabel,
+    onValueChange,
+    () => targetCheck.refresh(),
   );
   const validationState = () =>
     JSON.stringify([value.value, radioError, valueInput.validate(), valueInput.selectedGroup()]);
-  const targetCheck = createTargetCheck(targetStatus, (response) => {
-    const before = validationState();
-    radioError =
-      response?.status === "invalid-radio-group"
-        ? "同じグループのラジオだけを指定し，valueの重複を避けてください．"
-        : "";
-    valueInput.setInfo(response?.radio ?? response?.valueInput);
-    if (before !== validationState()) onCheckChange();
-  });
+  const targetCheck = createTargetCheck(
+    targetStatus,
+    (response) => {
+      const before = validationState();
+      radioError =
+        response?.status === "invalid-radio-group"
+          ? "同じグループのラジオだけを指定し，valueの重複を避けてください．"
+          : "";
+      const currentValue = canReadValue && value.value === "" ? response?.currentValue : undefined;
+      if (response?.status === "found") canReadValue = false;
+      valueInput.setInfo(response?.radio ?? response?.valueInput, currentValue);
+      if (before !== validationState()) onCheckChange();
+    },
+    () => canReadValue && value.value === "",
+  );
   const targetCandidates = createTargetCandidates(target, candidates);
   target.value = initial?.selector ?? "";
   value.value = initial?.value ?? "";
   target.addEventListener("input", () => {
+    canReadValue = value.value === "";
     valueInput.targetChanged();
     onChange();
+    if (canReadValue) targetCheck.refresh();
   });
+  valueSelect.addEventListener("change", onValueSelection);
   remove.addEventListener("click", onRemove);
 
   return {
@@ -93,6 +115,7 @@ export function createGeneratorItem(
       targetCheck.update(target.value.trim() ? target.value : null, pageUrl, page);
     },
     dispose(): void {
+      valueSelect.removeEventListener("change", onValueSelection);
       valueInput.dispose();
       targetCheck.dispose();
       targetCandidates.dispose();

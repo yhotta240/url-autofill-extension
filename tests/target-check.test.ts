@@ -47,6 +47,70 @@ test("有効状態を参照せずCSSセレクタを確認し，URLや入力値�
   document.removeEventListener("input", changed);
 });
 
+test.each([
+  ['<input id="field" value="田中">', "#field", "田中"],
+  ['<input id="field" value="">', "#field", ""],
+  ['<textarea id="field">1行目\n2行目</textarea>', "#field", "1行目\n2行目"],
+  ['<input id="field" type="checkbox" checked>', "#field", "true"],
+  ['<input id="field" type="checkbox">', "#field", "false"],
+  [
+    '<select id="field"><option value="a">A</option><option value="b" selected>B</option></select>',
+    "#field",
+    "b",
+  ],
+  ['<input id="field" type="radio" name="plan" value="b" checked>', "#field", "b"],
+  ['<input id="field" type="radio" name="plan" value="b">', "#field", ""],
+  [
+    '<input type="radio" name="plan" value="a"><input type="radio" name="plan" value="b" checked>',
+    'input[name="plan"]',
+    "b",
+  ],
+])("要求されたときだけ入力先の現在値を返し，ページを変更しない: %j", (html, selector, expected) => {
+  document.body.innerHTML = html;
+  const before = document.body.innerHTML;
+  const reply = vi.fn();
+  listener({ type: TARGET_CHECK_TYPE, selector, includeCurrentValue: true }, {}, reply);
+  expect(reply.mock.calls[0][0].currentValue).toBe(expected);
+  expect(document.body.innerHTML).toBe(before);
+});
+
+test.each([
+  '<input id="field" type="password" value="secret">',
+  '<input id="field" autocomplete="one-time-code" value="secret">',
+  '<input id="field" disabled value="secret">',
+  '<textarea id="field" readonly>secret</textarea>',
+])("対象外の入力欄は要求があっても現在値を読まない: %s", (html) => {
+  document.body.innerHTML = html;
+  Object.defineProperty(document.getElementById("field"), "value", {
+    get() {
+      throw new Error("対象外の値は取得しない");
+    },
+  });
+  const reply = vi.fn();
+  listener({ type: TARGET_CHECK_TYPE, selector: "#field", includeCurrentValue: true }, {}, reply);
+  expect(reply.mock.calls[0][0]).not.toHaveProperty("currentValue");
+});
+
+test("現在値の要求がなければ値を読まず，複数選択は取り込まない", () => {
+  Object.defineProperty(document.querySelector("input"), "value", {
+    get() {
+      throw new Error("要求されていない値は読まない");
+    },
+  });
+  const reply = vi.fn();
+  listener(
+    { type: TARGET_CHECK_TYPE, selector: 'input[name="email"]', includeCurrentValue: false },
+    {},
+    reply,
+  );
+  expect(reply.mock.calls[0][0]).not.toHaveProperty("currentValue");
+  document.body.innerHTML =
+    '<select id="multi" multiple><option value="a" selected>A</option><option value="b" selected>B</option></select>';
+  reply.mockClear();
+  listener({ type: TARGET_CHECK_TYPE, selector: "#multi", includeCurrentValue: true }, {}, reply);
+  expect(reply.mock.calls[0][0]).not.toHaveProperty("currentValue");
+});
+
 test("未検出・複数一致・不正なCSSを区別する", () => {
   document.body.insertAdjacentHTML("beforeend", '<input name="email">');
   for (const [target, status] of [
@@ -67,6 +131,7 @@ test("別のメッセージや不正な指定には応答せず，破棄時に�
     { type: "other" },
     { type: TARGET_CHECK_TYPE, target: { kind: "other", value: "email" } },
     { type: TARGET_CHECK_TYPE, selector: 1 },
+    { type: TARGET_CHECK_TYPE, selector: "#field", includeCurrentValue: "true" },
   ]) {
     listener(message, {}, reply);
   }

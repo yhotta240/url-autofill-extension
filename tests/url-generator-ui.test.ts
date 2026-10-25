@@ -63,6 +63,9 @@ async function setup(): Promise<void> {
 function radioResponse(radio: RadioInfo) {
   return { url: "https://example.com/form?q=1#/settings", status: "found", radio };
 }
+function currentValueResponse(currentValue: string) {
+  return { url: "https://example.com/form?q=1#/settings", status: "found", currentValue };
+}
 const radioOptions = [
   { label: "プランA", value: "a", disabled: false },
   { label: "プランB", value: "b", disabled: false },
@@ -293,6 +296,127 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllTimers();
   vi.useRealTimers();
+});
+
+test("新しい項目の空欄に現在値を取り込み，生成URLにも反映する", async () => {
+  await setup();
+  sendMessage.mockResolvedValue(currentValueResponse("田中\n太郎"));
+  add();
+  change("generator-target", "#name", 1);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(sendMessage).toHaveBeenCalledWith(
+    7,
+    {
+      type: TARGET_CHECK_TYPE,
+      selector: "#name",
+      includeCurrentValue: true,
+    },
+    { frameId: 0 },
+  );
+  expect(input("generator-value", 1).value).toBe("田中\n太郎");
+  expect(parseAutofillUrl(generated())?.entries[1].value).toBe("田中\n太郎");
+  expect(input("generator-value").value).toBe("test@example.com");
+});
+
+test("入力済みの値は現在値で上書きせず，取得も要求しない", async () => {
+  await setup();
+  sendMessage.mockResolvedValue(currentValueResponse("ページの値"));
+  change("generator-value", "手入力");
+  change("generator-target", "#name");
+  await vi.advanceTimersByTimeAsync(300);
+  expect(input("generator-value").value).toBe("手入力");
+  const request = sendMessage.mock.calls.find(([, message]) => message.selector === "#name")?.[1];
+  expect(request).not.toHaveProperty("includeCurrentValue");
+});
+
+test.each([
+  "手入力",
+  "",
+])("問い合わせ中に編集した値は，空欄でも上書きしない: %j", async (edited) => {
+  await setup();
+  let reply: (response: unknown) => void = () => {};
+  sendMessage.mockImplementation((_tab, message) =>
+    message.selector === "#name"
+      ? new Promise((resolve) => {
+          reply = resolve;
+        })
+      : Promise.resolve(currentValueResponse("")),
+  );
+  add();
+  change("generator-target", "#name", 1);
+  await vi.advanceTimersByTimeAsync(300);
+  change("generator-value", edited, 1);
+  reply(currentValueResponse("ページの値"));
+  await Promise.resolve();
+  expect(input("generator-value", 1).value).toBe(edited);
+});
+
+test("保存URLの空値は初回確認でも維持する", async () => {
+  const generator = setupUrlGenerator();
+  await Promise.resolve();
+  sendMessage.mockResolvedValue(currentValueResponse("ページの値"));
+  generator?.edit({
+    id: "saved",
+    name: "空値",
+    createdAt: 1,
+    url: "https://example.com/form?q=1#/settings#url-autofill:fill(%23name)=",
+  });
+  await vi.advanceTimersByTimeAsync(300);
+  expect(input("generator-value").value).toBe("");
+  const request = sendMessage.mock.calls.find(([, message]) => message.selector === "#name")?.[1];
+  expect(request).not.toHaveProperty("includeCurrentValue");
+});
+
+test("取り込み後に消した値は再フォーカスで戻さず，セレクタの再選択では取得できる", async () => {
+  await setup();
+  sendMessage.mockResolvedValue(currentValueResponse("ページの値"));
+  add();
+  change("generator-target", "#name", 1);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(input("generator-value", 1).value).toBe("ページの値");
+  change("generator-value", "", 1);
+  input("generator-value", 1).focus();
+  await vi.advanceTimersByTimeAsync(300);
+  expect(input("generator-value", 1).value).toBe("");
+  change("generator-target", "#name", 1);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(input("generator-value", 1).value).toBe("ページの値");
+});
+
+test.each([
+  { currentValue: "true", valueInput: { kind: "checkbox" }, selected: "チェックする" },
+  {
+    currentValue: "b",
+    valueInput: { kind: "select", options: [{ label: "B", value: "b", disabled: false }] },
+    selected: "B",
+  },
+  {
+    currentValue: "b",
+    radio: { mode: "group", group: "plan", options: [{ label: "B", value: "b", disabled: false }] },
+    selected: "B",
+  },
+])("現在の選択状態を入力UIにも反映する: %j", async ({ selected, ...info }) => {
+  await setup();
+  sendMessage.mockResolvedValue({ ...currentValueResponse(info.currentValue), ...info });
+  add();
+  change("generator-target", "#choice", 1);
+  await vi.advanceTimersByTimeAsync(300);
+  const select = items()[1].querySelector<HTMLSelectElement>("[data-value-select]");
+  expect(select?.selectedOptions[0].textContent).toBe(selected);
+  expect(input("generator-value", 1).value).toBe(info.currentValue);
+});
+
+test("未選択の単体ラジオは定義値で選択済みにしない", async () => {
+  await setup();
+  sendMessage.mockResolvedValue({
+    ...currentValueResponse(""),
+    radio: { mode: "direct", value: "b" },
+  });
+  add();
+  change("generator-target", "#radio", 1);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(input("generator-value", 1).value).toBe("");
+  expect(parseAutofillUrl(generated())?.entries[1].value).toBe("");
 });
 
 test("現在URLとサンプル値で生成し，自動入力の有効状態を参照せず保存もしない", async () => {
