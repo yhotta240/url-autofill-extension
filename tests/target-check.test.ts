@@ -74,3 +74,36 @@ test("別のメッセージや不正な指定には応答せず，破棄時に�
   dispose();
   expect(chrome.runtime.onMessage.removeListener).toHaveBeenCalledWith(listener);
 });
+
+test("ラジオ情報はラベル・無効状態・フォーム所有者を返し，選択状態は参照しない", () => {
+  document.body.innerHTML =
+    '<form id="owner"><label for="a">プランA</label><input type="radio" name="plan" id="a" value="a"><label><input type="radio" name="plan" id="b" value="">空</label><fieldset disabled><input type="radio" name="plan" value="c"></fieldset></form><input type="radio" name="plan" form="owner" id="external" value="d"><form><input type="radio" name="plan" id="other" value="a"></form>';
+  for (const radio of document.querySelectorAll("input")) {
+    Object.defineProperty(radio, "checked", {
+      get() {
+        throw new Error("現在の選択は読まない");
+      },
+    });
+  }
+  const reply = (value: string) => {
+    const response = vi.fn();
+    listener({ type: TARGET_CHECK_TYPE, target: { kind: "selector", value } }, {}, response);
+    return response.mock.calls[0][0];
+  };
+  const direct = reply("#a").radio;
+  expect(direct).toMatchObject({ mode: "direct", value: "a", group: expect.any(String) });
+  const grouped = reply("#owner").radio;
+  expect(grouped).toEqual({
+    mode: "group",
+    group: direct.group,
+    options: [
+      { label: "プランA", value: "a", disabled: false },
+      { label: "空", value: "", disabled: false },
+      { label: "c", value: "c", disabled: true },
+    ],
+  });
+  expect(reply("#external").radio.group).toBe(direct.group);
+  expect(reply("#other").radio.group).not.toBe(direct.group);
+  document.body.prepend(document.createElement("form"));
+  expect(reply("#a").radio.group).toBe(direct.group);
+});

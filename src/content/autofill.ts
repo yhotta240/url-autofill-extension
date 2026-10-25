@@ -79,9 +79,31 @@ export function fillElement(element: Element, value: string): FillResult {
     return "unsupported";
   }
 
+  return setNativeValue(element, prototype, property, nextValue);
+}
+
+/** グループ内の空valueも「選択」として扱い，単体の空値による解除と区別する． */
+export function fillRadioGroup(elements: HTMLInputElement[], value: string): FillResult {
+  const radio = elements.find((element) => element.value === value);
+  if (!radio) return "waiting";
+  const blocked = getFillBlockReason(radio);
+  if (blocked) return blocked;
+  const view = radio.ownerDocument.defaultView;
+  if (!view) return "unsupported";
+  return setNativeValue(radio, view.HTMLInputElement.prototype, "checked", true);
+}
+
+function setNativeValue(
+  element: Element,
+  prototype: object,
+  property: string,
+  value: string | boolean,
+): FillResult {
+  const view = element.ownerDocument.defaultView;
+  if (!view) return "unsupported";
   const setter = Object.getOwnPropertyDescriptor(prototype, property)?.set;
   if (!setter) return "unsupported";
-  setter.call(element, nextValue);
+  setter.call(element, value);
   element.dispatchEvent(new view.Event("input", { bubbles: true, composed: true }));
   element.dispatchEvent(new view.Event("change", { bubbles: true }));
   return "filled";

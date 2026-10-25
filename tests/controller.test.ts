@@ -44,6 +44,23 @@ function createPage(html: string, hash = "") {
   return { window, document, logs };
 }
 
+test("指定範囲へ遅れて追加されるラジオの選択肢を待ち，範囲外は使わない", async () => {
+  createPage(
+    '<div id="scope"><input type="radio" name="plan" value="a"></div><input type="radio" name="plan" id="outside" value="b">',
+    "#url-autofill:fill(%23scope)=b",
+  );
+  start(document);
+  await advance();
+  assert.equal(document.querySelector(":checked"), null);
+  await advance(DOM_WAIT_MS - 200);
+  document
+    .querySelector("#scope")
+    ?.insertAdjacentHTML("beforeend", '<input type="radio" name="plan" id="later" value="b">');
+  await advance();
+  assert.equal(document.querySelector<HTMLInputElement>("#later")?.checked, true);
+  assert.equal(document.querySelector<HTMLInputElement>("#outside")?.checked, false);
+});
+
 test("URLを入力前に整理し，履歴stateを保持して一度だけ入力する", async () => {
   const { window, document, logs } = createPage(
     '<input name="email">',

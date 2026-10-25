@@ -3,6 +3,7 @@ import {
   isTargetCheckResponse,
   TARGET_CHECK_TYPE,
   type TargetCheckRequest,
+  type TargetCheckResponse,
 } from "../../shared/target-check.ts";
 import { type CurrentPage, normalizePageUrl } from "../current-page.ts";
 
@@ -12,15 +13,22 @@ const MESSAGES = {
   missing: "現在のページでは見つかりません",
   ambiguous: "複数見つかりました。CSSセレクタで絞ってください",
   "invalid-selector": "CSSセレクタの構文を確認してください",
+  "invalid-radio-group": "同じグループのラジオだけを指定し，valueの重複を避けてください",
   unavailable: "このページでは確認できません",
   "different-page": "現在のページとURLが異なるため確認できません",
 };
 
 /** 項目ごとに入力待ちと応答の世代を管理し，古い結果の表示を防ぐ． */
-export function createTargetCheck(element: HTMLElement) {
+export function createTargetCheck(
+  element: HTMLElement,
+  onResult: (response: TargetCheckResponse | null) => void = () => {},
+) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let revision = 0;
   let lastKey = "";
+  let current:
+    | { target: FillTarget | null; pageUrl: string; page: CurrentPage | null | undefined }
+    | undefined;
 
   function show(status: keyof typeof MESSAGES | null): void {
     element.textContent = status === null ? "" : MESSAGES[status];
@@ -35,6 +43,7 @@ export function createTargetCheck(element: HTMLElement) {
 
   async function check(target: FillTarget, page: CurrentPage, url: string, version: number) {
     let status: keyof typeof MESSAGES;
+    let result: TargetCheckResponse | null = null;
     try {
       const response: unknown = await chrome.tabs.sendMessage(
         page.tabId,
@@ -43,34 +52,50 @@ export function createTargetCheck(element: HTMLElement) {
       );
       if (!isTargetCheckResponse(response)) throw new Error("invalid response");
       status = normalizePageUrl(response.url) === url ? response.status : "different-page";
+      if (status !== "different-page") result = response;
     } catch {
       status = "unavailable";
     }
-    if (version === revision) show(status);
+    if (version !== revision) return;
+    show(status);
+    onResult(result);
+  }
+
+  function update(
+    target: FillTarget | null,
+    pageUrl: string,
+    page: CurrentPage | null | undefined,
+    refresh = false,
+  ): void {
+    current = { target, pageUrl, page };
+    const key = JSON.stringify([target, pageUrl, page === undefined ? "loading" : page]);
+    if (!refresh && key === lastKey) return;
+    lastKey = key;
+    cancel();
+    // フォーカス時の再取得では既存のコントロールを維持する．
+    if (!refresh) onResult(null);
+
+    const url = normalizePageUrl(pageUrl);
+    if (!target?.value.trim() || !url || page === undefined) {
+      show(null);
+    } else if (page === null) {
+      show("unavailable");
+    } else if (normalizePageUrl(page.url) !== url) {
+      show("different-page");
+    } else {
+      show("checking");
+      const version = revision;
+      timer = setTimeout(() => {
+        timer = undefined;
+        void check(target, page, url, version);
+      }, 300);
+    }
   }
 
   return {
-    update(target: FillTarget | null, pageUrl: string, page: CurrentPage | null | undefined): void {
-      const key = JSON.stringify([target, pageUrl, page === undefined ? "loading" : page]);
-      if (key === lastKey) return;
-      lastKey = key;
-      cancel();
-
-      const url = normalizePageUrl(pageUrl);
-      if (!target?.value.trim() || !url || page === undefined) {
-        show(null);
-      } else if (page === null) {
-        show("unavailable");
-      } else if (normalizePageUrl(page.url) !== url) {
-        show("different-page");
-      } else {
-        show("checking");
-        const version = revision;
-        timer = setTimeout(() => {
-          timer = undefined;
-          void check(target, page, url, version);
-        }, 300);
-      }
+    update,
+    refresh(): void {
+      if (current) update(current.target, current.pageUrl, current.page, true);
     },
     dispose(): void {
       cancel();

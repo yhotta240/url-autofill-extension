@@ -32,6 +32,15 @@ test("name/idを要素順で返し，非フォームのnameや同じ要素の重
   ]);
 });
 
+test("有効なラジオグループのnameと各IDを候補にし，CSSは単体のままにする", () => {
+  document.body.innerHTML =
+    '<fieldset id="parent"><input type="radio" name="plan" id="a" value="a"><input type="radio" name="plan" id="b" value="b"></fieldset>';
+  expect(getTargetCandidates(document, "field")).toEqual(["plan", "a", "b"]);
+  expect(getTargetCandidates(document, "selector")).toEqual(["#a", "#b"]);
+  document.querySelector<HTMLInputElement>("#b")?.setAttribute("value", "a");
+  expect(getTargetCandidates(document, "field")).toEqual(["a", "b"]);
+});
+
 test("曖昧なname/idや別の要素を指すidを除き，一意な代替idは残す", () => {
   document.body.innerHTML =
     '<input name="repeat" id="first"><input name="repeat" id="second"><div id="duplicate"></div><input id="duplicate"><input name="   "><input>';
@@ -114,7 +123,8 @@ test("CSSはidとnameを優先し，属性なし・重複ありの要素も一�
   selectors.forEach((selector, index) => {
     const result = resolveTarget({ kind: "selector", value: selector }, document);
     expect(result.status).toBe("found");
-    if (result.status === "found") expect(result.element).toBe(controls[index]);
+    if (result.status === "found" && result.kind === "element")
+      expect(result.element).toBe(controls[index]);
   });
 });
 

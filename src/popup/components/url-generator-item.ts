@@ -1,5 +1,6 @@
 import type { FillEntry, FillTarget } from "../../content/parser.ts";
 import type { CurrentPage } from "../current-page.ts";
+import { createRadioValue } from "./radio-value.ts";
 import { createTargetCandidates } from "./target-candidates.ts";
 import { createTargetCheck } from "./target-check.ts";
 
@@ -10,6 +11,7 @@ export function createGeneratorItem(
   onChange: () => void,
   onRemove: () => void,
   initial?: FillEntry,
+  onCheckChange: () => void = onChange,
 ) {
   const fragment = template.content.cloneNode(true) as DocumentFragment;
   const element = fragment.querySelector<HTMLFieldSetElement>("fieldset");
@@ -20,6 +22,9 @@ export function createGeneratorItem(
   const targetStatus = fragment.querySelector<HTMLElement>("[data-target-status]");
   const candidates = fragment.querySelector<HTMLElement>("[data-target-candidates]");
   const value = fragment.querySelector<HTMLTextAreaElement>("[data-value]");
+  const radioSelect = fragment.querySelector<HTMLSelectElement>("[data-radio-select]");
+  const radioOutput = fragment.querySelector<HTMLOutputElement>("[data-radio-output]");
+  const valueLabel = fragment.querySelector<HTMLLabelElement>("[data-value-label]");
   const remove = fragment.querySelector<HTMLButtonElement>("[data-remove]");
   if (
     !element ||
@@ -30,6 +35,9 @@ export function createGeneratorItem(
     !targetStatus ||
     !candidates ||
     !value ||
+    !radioSelect ||
+    !radioOutput ||
+    !valueLabel ||
     !remove
   ) {
     throw new Error("URL生成項目のテンプレートが不正です．");
@@ -46,7 +54,24 @@ export function createGeneratorItem(
   }
   targetStatus.id = `generator-target-status-${id}`;
   target.setAttribute("aria-describedby", `${targetStatus.id} generator-error`);
-  const targetCheck = createTargetCheck(targetStatus);
+  radioSelect.id = `generator-radio-select-${id}`;
+  radioOutput.id = `generator-radio-output-${id}`;
+  radioSelect.setAttribute("aria-describedby", "generator-error");
+  let radioError = "";
+  const radioValue = createRadioValue(value, radioSelect, radioOutput, valueLabel, onChange, () =>
+    targetCheck.refresh(),
+  );
+  const validationState = () =>
+    JSON.stringify([value.value, radioError, radioValue.validate(), radioValue.selectedGroup()]);
+  const targetCheck = createTargetCheck(targetStatus, (response) => {
+    const before = validationState();
+    radioError =
+      response?.status === "invalid-radio-group"
+        ? "同じグループのラジオだけを指定し，valueの重複を避けてください．"
+        : "";
+    radioValue.setInfo(response?.radio);
+    if (before !== validationState()) onCheckChange();
+  });
   const targetCandidates = createTargetCandidates(target, candidates);
   let mode: FillTarget["kind"] = initial?.target.kind ?? "field";
   const targets = { field: "", selector: initial ? "#email" : "" };
@@ -63,12 +88,14 @@ export function createGeneratorItem(
 
   target.addEventListener("input", () => {
     targets[mode] = target.value;
+    radioValue.targetChanged();
     onChange();
   });
   value.addEventListener("input", onChange);
   method.addEventListener("change", () => {
     mode = method.value === "selector" ? "selector" : "field";
     showMethod();
+    radioValue.targetChanged();
     onChange();
   });
   remove.addEventListener("click", onRemove);
@@ -84,10 +111,11 @@ export function createGeneratorItem(
     readEntry(): FillEntry {
       return { target: { kind: mode, value: target.value }, value: value.value };
     },
+    selectedRadioGroup: radioValue.selectedGroup,
     checkTarget(pageUrl: string, page: CurrentPage | null | undefined): void {
       targetCandidates.update(mode, pageUrl, page);
       targetCheck.update(
-        target.validity.valid ? { kind: mode, value: target.value } : null,
+        target.value.trim() ? { kind: mode, value: target.value } : null,
         pageUrl,
         page,
       );
@@ -110,7 +138,7 @@ export function createGeneratorItem(
       target.setCustomValidity(message);
       if (showErrors && message) target.setAttribute("aria-invalid", "true");
       else target.removeAttribute("aria-invalid");
-      return message;
+      return message || radioError || radioValue.validate();
     },
   };
 }

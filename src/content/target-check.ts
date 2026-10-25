@@ -3,6 +3,7 @@ import {
   type TargetCandidatesResponse,
 } from "../shared/target-candidates.ts";
 import { isTargetCheckRequest, type TargetCheckResponse } from "../shared/target-check.ts";
+import { getRadioInfo } from "./radio.ts";
 import { resolveTarget } from "./resolver.ts";
 import { getTargetCandidates } from "./target-candidates.ts";
 
@@ -24,9 +25,12 @@ export function listenForTargetChecks(root: Document): () => void {
       return;
     }
     if (!isTargetCheckRequest(message)) return;
+    const result = resolveTarget(message.target, root);
+    const radio = getRadioInfo(result);
     sendResponse({
       url: view.location.href,
-      status: resolveTarget(message.target, root).status,
+      status: result.status,
+      ...(radio ? { radio } : {}),
     } satisfies TargetCheckResponse);
   };
 

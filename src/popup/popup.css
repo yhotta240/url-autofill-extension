@@ -140,6 +140,14 @@ html.sidepanel {
   grid-column: 1 / -1;
 }
 
+#url-generator :is([data-value], [data-radio-select], [data-radio-output])[hidden] {
+  display: none;
+}
+
+#url-generator [data-radio-output] {
+  overflow-wrap: anywhere;
+}
+
 .generator-target-input {
   position: relative;
   min-width: 0;

@@ -5,7 +5,7 @@ import { resolveTarget } from "./resolver.ts";
 function selectorFor(element: Element, root: Document): string {
   const identifies = (selector: string): boolean => {
     const result = resolveTarget({ kind: "selector", value: selector }, root);
-    return result.status === "found" && result.element === element;
+    return result.status === "found" && result.kind === "element" && result.element === element;
   };
   if (element.id) {
     const selector = `#${CSS.escape(element.id)}`;
@@ -57,7 +57,13 @@ export function getTargetCandidates(root: Document, kind: FillTarget["kind"]): s
       )
         continue;
       const result = resolveTarget({ kind: "field", value }, root);
-      if (result.status === "found" && result.element === element) candidates.add(value);
+      if (
+        result.status === "found" &&
+        (result.kind === "element"
+          ? result.element === element
+          : result.elements.some((radio) => radio === element))
+      )
+        candidates.add(value);
     }
   }
   return [...candidates];
