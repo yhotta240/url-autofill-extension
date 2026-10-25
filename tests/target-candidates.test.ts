@@ -32,13 +32,82 @@ test("name/idを要素順で返し，非フォームのnameや同じ要素の重
   ]);
 });
 
-test("有効なラジオグループのnameと各IDを候補にし，CSSは単体のままにする", () => {
+test("ラジオのCSS候補をグループへまとめ，重複valueなら単体を残す", () => {
   document.body.innerHTML =
     '<fieldset id="parent"><input type="radio" name="plan" id="a" value="a"><input type="radio" name="plan" id="b" value="b"></fieldset>';
   expect(getTargetCandidates(document, "field")).toEqual(["plan", "a", "b"]);
-  expect(getTargetCandidates(document, "selector")).toEqual(["#a", "#b"]);
+  expect(getTargetCandidates(document, "selector")).toEqual(["input[type=radio][name=plan]"]);
   document.querySelector<HTMLInputElement>("#b")?.setAttribute("value", "a");
   expect(getTargetCandidates(document, "field")).toEqual(["a", "b"]);
+  expect(getTargetCandidates(document, "selector")).toEqual(["#a", "#b"]);
+});
+
+test("同名でも別フォームを混ぜず，form属性で関連付いた範囲外のラジオも含める", () => {
+  document.body.innerHTML =
+    '<form id="first"><input type="radio" name="plan" value="a"><input type="radio" name="plan" value="b" disabled><input type="radio" name="plan" value="other" form="second"></form><input type="radio" name="plan" value="external" form="first"><form id="second"><input type="radio" name="plan" value="c"></form>';
+  const selectors = getTargetCandidates(document, "selector");
+  expect(selectors).toHaveLength(2);
+  const groups = selectors.map((selector) => {
+    const result = resolveTarget({ kind: "selector", value: selector }, document);
+    expect(result.status).toBe("found");
+    if (result.status !== "found" || result.kind !== "radio-group")
+      throw new Error("グループではありません");
+    return result.elements;
+  });
+  expect(groups[0].map((radio) => radio.value)).toEqual(["a", "b", "external"]);
+  expect(groups[1].map((radio) => radio.value)).toEqual(["other", "c"]);
+});
+
+test("IDのないフォームとフォーム外の同名グループも別々のCSS候補にする", () => {
+  document.body.innerHTML =
+    '<input type="radio" name="plan" value="outside-a"><input type="radio" name="plan" value="outside-b"><form><input type="radio" name="plan" value="a"><input type="radio" name="plan" value="b"></form><form><input type="radio" name="plan" value="c"><input type="radio" name="plan" value="d"></form>';
+  const selectors = getTargetCandidates(document, "selector");
+  expect(selectors).toHaveLength(3);
+  expect(
+    selectors.map((selector) =>
+      [...document.querySelectorAll<HTMLInputElement>(selector)].map((radio) => radio.value),
+    ),
+  ).toEqual([
+    ["outside-a", "outside-b"],
+    ["a", "b"],
+    ["c", "d"],
+  ]);
+});
+
+test("単独・nameなし・入力対象外を含むラジオは単体候補を維持する", () => {
+  document.body.innerHTML =
+    '<input type="radio" id="single" name="single" value="a"><input type="radio" id="unnamed" value="a"><input type="radio" id="safe" name="blocked" value="a"><input type="radio" name="blocked" value="b" autocomplete="one-time-code"><input type="checkbox" id="check" name="single">';
+  expect(getTargetCandidates(document, "selector")).toEqual([
+    "#single",
+    "#unnamed",
+    "#safe",
+    "#check",
+  ]);
+});
+
+test("グループ全体を指せない場合は，一部だけをまとめず単体候補を残す", () => {
+  document.body.innerHTML =
+    '<input type="radio" id="a" name="plan" value="a"><input type="radio" id="b" name="plan" value="b"><input type="radio" id="orphan" name="plan" value="orphan" form="missing"><form id="owner"><input type="radio" name="plan" value="c"><input type="radio" name="plan" value="d"></form>';
+  const selectors = getTargetCandidates(document, "selector");
+  expect(selectors.slice(0, 3)).toEqual(["#a", "#b", "#orphan"]);
+  expect(selectors).toHaveLength(4);
+  expect(
+    [...document.querySelectorAll<HTMLInputElement>(selectors[3])].map((radio) => radio.value),
+  ).toEqual(["c", "d"]);
+});
+
+test("特殊文字を含むグループ名をエスケープし，生成URLから同じグループを復元できる", () => {
+  document.body.innerHTML = '<input type="radio" value="a"><input type="radio" value="b">';
+  for (const radio of document.querySelectorAll("input")) radio.name = 'プラン["a"]';
+  const selectors = getTargetCandidates(document, "selector");
+  expect(selectors).toHaveLength(1);
+  const entry = { target: { kind: "selector" as const, value: selectors[0] }, value: "b" };
+  const request = parseAutofillUrl(generateAutofillUrl(window.location.href, [entry]));
+  expect(request?.entries).toEqual([entry]);
+  expect(resolveTarget(entry.target, document)).toMatchObject({
+    status: "found",
+    kind: "radio-group",
+  });
 });
 
 test("曖昧なname/idや別の要素を指すidを除き，一意な代替idは残す", () => {
