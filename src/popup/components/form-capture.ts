@@ -40,7 +40,8 @@ export function createFormCapture(
   function sync(current = state()): void {
     if (!scope || !button) return;
     scope.disabled = !eligible(current);
-    button.disabled = scope.disabled || !ready || loading || capturing || current.busy;
+    button.disabled =
+      scope.disabled || scope.selectedIndex < 0 || !ready || loading || capturing || current.busy;
   }
 
   async function loadForms(): Promise<void> {
@@ -67,16 +68,19 @@ export function createFormCapture(
       const key = JSON.stringify(response.forms);
       if (key !== formsKey) {
         formsKey = key;
-        const selected = scope.value;
+        const selected = scope.selectedIndex < 0 ? null : scope.value;
         scope.replaceChildren(
           new Option("ページ全体", ""),
           ...response.forms.map((form) => new Option(form.label, form.selector)),
         );
-        const found = !selected || response.forms.some((form) => form.selector === selected);
-        scope.value = found ? selected : "";
-        if (!found)
-          status.textContent = "選択したフォームが見つかりません．範囲を選び直してください．";
+        const found =
+          selected !== null &&
+          (!selected || response.forms.some((form) => form.selector === selected));
+        if (found) scope.value = selected;
+        else scope.selectedIndex = -1;
       }
+      if (scope.selectedIndex < 0)
+        status.textContent = "選択したフォームが見つかりません．範囲を選び直してください．";
       ready = true;
     } catch {
       if (version !== formsVersion) return;

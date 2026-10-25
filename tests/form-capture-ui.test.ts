@@ -113,6 +113,42 @@ test("編集した項目を保持して追加し，フォーム選択と再取�
   expect(scope().value).toBe("#form");
 });
 
+test("選択したフォームが消えたら，再取得を繰り返しても範囲を選び直すまで追加できない", async () => {
+  await setup();
+  scope().value = "#form";
+  scope().dispatchEvent(new Event("change"));
+  forms = [];
+  scope().focus();
+  await flush();
+  expect(scope().selectedIndex).toBe(-1);
+  expect(button().disabled).toBe(true);
+  expect(status()).toContain("範囲を選び直してください");
+  button().click();
+  expect(sendMessage.mock.calls.filter(([, message]) => message.action === "capture")).toHaveLength(
+    0,
+  );
+  for (const options of [[], [{ selector: "#new", label: "フォーム1（#new）" }]]) {
+    forms = options;
+    scope().blur();
+    scope().focus();
+    await flush();
+    expect(scope().selectedIndex).toBe(-1);
+    expect(button().disabled).toBe(true);
+    expect(status()).toContain("範囲を選び直してください");
+  }
+  scope().value = "";
+  scope().dispatchEvent(new Event("change"));
+  expect(button().disabled).toBe(false);
+  button().click();
+  await flush();
+  expect(sendMessage).toHaveBeenCalledWith(
+    7,
+    expect.objectContaining({ action: "capture", scope: null }),
+    { frameId: 0 },
+  );
+  expect(entries()).toEqual(captured);
+});
+
 test("重複と対象外の件数を表示し，追加0件なら既存項目を変えない", async () => {
   await setup();
   const before = entries();
