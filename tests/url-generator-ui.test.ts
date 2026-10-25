@@ -644,6 +644,28 @@ test("チェックボックスの表示切替は生成URLやコピー結果を�
   expect(document.getElementById("generator-copy-status")?.textContent).toBe("");
 });
 
+test("チェックボックスの不正値は未選択にし，選ぶまでコピー・保存を止める", async () => {
+  sendMessage.mockResolvedValue({
+    url: "https://example.com/form?q=1#/settings",
+    status: "found",
+    valueInput: { kind: "checkbox" },
+  });
+  await setup();
+  change("generator-target", "agree");
+  await vi.advanceTimersByTimeAsync(300);
+  const select = items()[0].querySelector<HTMLSelectElement>("[data-value-select]");
+  expect(select?.selectedOptions[0].textContent).toBe("選択してください");
+  expect(input("generator-value").value).toBe("test@example.com");
+  expect(generated()).toBe("");
+  expect(button().disabled).toBe(true);
+  const saveButton = document.getElementById("generator-save") as HTMLButtonElement;
+  expect(saveButton.disabled).toBe(true);
+  chooseValue("チェックする");
+  expect(button().disabled).toBe(false);
+  expect(saveButton.disabled).toBe(false);
+  expect(parseAutofillUrl(generated())?.entries[0].value).toBe("true");
+});
+
 test.each([
   "a&b",
   "",

@@ -15,15 +15,27 @@ export function createValueInput(
   let useDirectValue = false;
   let optionsKey = "";
   let updating = false;
-  const placeholder = new Option("", "");
+  const placeholder = new Option("選択してください", "");
   placeholder.disabled = true;
+
+  function selectionValue(): string {
+    const raw = value.value;
+    if (field?.kind === "checkbox") {
+      if (raw === "1") return "true";
+      if (raw === "0" || raw === "") return "false";
+    }
+    return raw;
+  }
 
   function validate(): string {
     const grouped = radio?.mode === "group";
-    if (!grouped && field?.kind !== "select") return "";
-    const option = choices.find((option) => option.value === value.value);
+    if (!grouped && !field) return "";
+    const selectedValue = selectionValue();
+    const option = choices.find((option) => option.value === selectedValue);
     if (!option) {
-      return grouped ? "ラジオの選択肢を選んでください．" : "選択リストの選択肢を選んでください．";
+      if (grouped) return "ラジオの選択肢を選んでください．";
+      if (field?.kind === "checkbox") return "チェック状態を選んでください．";
+      return "選択リストの選択肢を選んでください．";
     }
     if (option.disabled) {
       return grouped ? "無効なラジオは選択できません．" : "無効な選択肢は選択できません．";
@@ -58,13 +70,7 @@ export function createValueInput(
         );
       }
       placeholder.hidden = !grouped;
-      placeholder.textContent =
-        grouped || field?.kind === "select" ? "選択してください" : `現在の値：${value.value}`;
-      let selectedValue = value.value;
-      if (field?.kind === "checkbox") {
-        if (selectedValue === "1") selectedValue = "true";
-        else if (selectedValue === "0" || selectedValue === "") selectedValue = "false";
-      }
+      const selectedValue = selectionValue();
       const index = choices.findIndex((option) => option.value === selectedValue);
       select.value = index < 0 ? "" : String(index);
     }

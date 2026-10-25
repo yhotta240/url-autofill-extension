@@ -80,6 +80,7 @@ test.each([
   value.value = raw;
   editor.setInfo({ kind: "checkbox" });
   expect(select.selectedOptions[0].textContent).toBe(shown);
+  expect(editor.validate()).toBe("");
   expect(value.value).toBe(raw);
   expect(changed).not.toHaveBeenCalled();
   choose(next);
