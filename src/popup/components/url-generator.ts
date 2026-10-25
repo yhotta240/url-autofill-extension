@@ -2,6 +2,7 @@ import { type FillEntry, MAX_FIELDS } from "../../content/parser.ts";
 import { readSavedUrl, type SavedUrl, saveUrl } from "../../utils/saved-urls.ts";
 import { generateAutofillUrl } from "../../utils/url-generator.ts";
 import { type CurrentPage, getCurrentPage } from "../current-page.ts";
+import { createFormCapture } from "./form-capture.ts";
 import { createGeneratorItem } from "./url-generator-item.ts";
 
 export function setupUrlGenerator(
@@ -53,6 +54,7 @@ export function setupUrlGenerator(
   let savedName = "";
   let baseline = "";
   let rendering = false;
+  let sampleUntouched = true;
 
   function snapshot(): string {
     return JSON.stringify([savedName, pageUrl?.value, items.map((item) => item.readEntry())]);
@@ -102,6 +104,7 @@ export function setupUrlGenerator(
     if (showErrors && !pageUrl.validity.valid) pageUrl.setAttribute("aria-invalid", "true");
     else pageUrl.removeAttribute("aria-invalid");
     rendering = false;
+    capture.update();
   }
 
   function updateItems(): void {
@@ -119,9 +122,13 @@ export function setupUrlGenerator(
     const item = createGeneratorItem(
       template,
       nextId++,
-      () => render(),
+      () => {
+        sampleUntouched = false;
+        render();
+      },
       () => {
         if (items.length === 1) return;
+        sampleUntouched = false;
         const index = items.indexOf(item);
         items.splice(index, 1);
         item.dispose();
@@ -145,6 +152,7 @@ export function setupUrlGenerator(
     render();
   });
   add.addEventListener("click", () => {
+    sampleUntouched = false;
     const item = addItem();
     render();
     item?.target.focus();
@@ -178,6 +186,7 @@ export function setupUrlGenerator(
     savedName = name;
     saveStatus.textContent = "";
     saving = true;
+    capture.update();
     save.disabled = true;
     cancel.disabled = true;
     const savedRevision = revision;
@@ -203,6 +212,7 @@ export function setupUrlGenerator(
       }
     } finally {
       saving = false;
+      capture.update();
       save.disabled = !result.textContent;
       cancel.disabled = false;
     }
@@ -219,6 +229,28 @@ export function setupUrlGenerator(
     target: { kind: "field", value: "email" },
     value: "test@example.com",
   };
+  const capture = createFormCapture(
+    root,
+    () => ({
+      page: currentPage,
+      url: pageUrl.value,
+      version: revision,
+      targets: sampleUntouched && !editingId ? [] : items.map((item) => item.readEntry().target),
+      busy: saving,
+    }),
+    (entries) => {
+      if (saving) throw new Error("保存が完了してから追加してください．");
+      if (entries.length === 0) return;
+      const replace = sampleUntouched && !editingId;
+      if ((replace ? 0 : items.length) + entries.length > MAX_FIELDS) {
+        throw new Error(`入力項目は${MAX_FIELDS}件までです．項目を減らしてから追加してください．`);
+      }
+      if (replace) replaceItems(entries);
+      else for (const entry of entries) addItem(entry);
+      sampleUntouched = false;
+      render();
+    },
+  );
   cancel.addEventListener("click", () => {
     editingId = undefined;
     save.textContent = "保存";
@@ -226,6 +258,7 @@ export function setupUrlGenerator(
     savedName = "";
     urlEdited = false;
     interacted = false;
+    sampleUntouched = true;
     pageUrl.value = currentPage?.url ?? "";
     sourceStatus.textContent =
       currentPage === null
@@ -252,6 +285,7 @@ export function setupUrlGenerator(
       }
     }
     for (const item of items) item.checkTarget(pageUrl.value, page);
+    capture.update();
   };
 
   async function loadCurrentUrl(): Promise<void> {
@@ -275,6 +309,7 @@ export function setupUrlGenerator(
       }
       try {
         const request = readSavedUrl(item.url);
+        sampleUntouched = false;
         urlEdited = true;
         pageUrl.value = request.cleanUrl;
         sourceStatus.textContent = "";

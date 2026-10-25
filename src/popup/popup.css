@@ -121,6 +121,10 @@ html.sidepanel {
   resize: vertical;
 }
 
+#generator-capture-scope {
+  min-width: 0;
+}
+
 #url-generator .generator-item {
   position: relative;
   padding: 0.375rem 0.5rem;

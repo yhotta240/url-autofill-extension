@@ -141,6 +141,16 @@
           <input type="url" class="form-control form-control-sm" id="generator-page-url" placeholder="https://example.com/form" required aria-describedby="generator-source-status generator-error" spellcheck="false">
           <p id="generator-source-status" class="form-text mb-0" role="status">現在のページURLを取得しています…</p>
         </div>
+        <div class="mb-2">
+          <label for="generator-capture-scope" class="form-label">取り込み範囲</label>
+          <div class="d-flex align-items-center gap-2">
+            <select id="generator-capture-scope" class="form-select form-select-sm" disabled aria-describedby="generator-capture-status">
+              <option value="">ページ全体</option>
+            </select>
+            <button type="button" class="btn btn-outline-primary btn-sm text-nowrap" id="generator-capture" disabled>現在の入力内容を追加</button>
+          </div>
+          <p id="generator-capture-status" class="form-text mb-0" role="status"></p>
+        </div>
         <div id="generator-items"></div>
         <template id="generator-item-template">
           <fieldset class="generator-item border rounded mb-2" data-generator-item>
