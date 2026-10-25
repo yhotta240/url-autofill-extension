@@ -2,7 +2,11 @@ import type { Resolution } from "../content/resolver.ts";
 
 export const TARGET_CHECK_TYPE = "url-autofill:check-target";
 
-export type TargetCheckRequest = { type: typeof TARGET_CHECK_TYPE; selector: string };
+export type TargetCheckRequest = {
+  type: typeof TARGET_CHECK_TYPE;
+  selector: string;
+  includeCurrentValue?: boolean;
+};
 export type ValueInputOption = { label: string; value: string; disabled: boolean };
 export type RadioInfo =
   | { mode: "direct"; group?: string; value: string }
@@ -13,6 +17,7 @@ export type TargetCheckResponse = {
   url: string;
   status: Resolution["status"];
   targetInfo?: TargetInfo;
+  currentValue?: string;
   radio?: RadioInfo;
   valueInput?: ValueInputInfo;
 };
@@ -31,7 +36,12 @@ export function isTargetInfo(value: unknown): value is TargetInfo {
 }
 
 export function isTargetCheckRequest(value: unknown): value is TargetCheckRequest {
-  return isRecord(value) && value.type === TARGET_CHECK_TYPE && typeof value.selector === "string";
+  return (
+    isRecord(value) &&
+    value.type === TARGET_CHECK_TYPE &&
+    typeof value.selector === "string" &&
+    (value.includeCurrentValue === undefined || typeof value.includeCurrentValue === "boolean")
+  );
 }
 
 export function isTargetCheckResponse(value: unknown): value is TargetCheckResponse {
@@ -45,6 +55,8 @@ export function isTargetCheckResponse(value: unknown): value is TargetCheckRespo
       value.status === "invalid-radio-group") &&
     (value.targetInfo === undefined ||
       (value.status === "found" && isTargetInfo(value.targetInfo))) &&
+    (value.currentValue === undefined ||
+      (value.status === "found" && typeof value.currentValue === "string")) &&
     (value.radio === undefined || (value.status === "found" && isRadioInfo(value.radio))) &&
     (value.valueInput === undefined ||
       (value.status === "found" && isValueInputInfo(value.valueInput)))

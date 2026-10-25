@@ -21,6 +21,7 @@ const MESSAGES = {
 export function createTargetCheck(
   element: HTMLElement,
   onResult: (response: TargetCheckResponse | null) => void = () => {},
+  shouldReadValue: () => boolean = () => false,
 ) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let revision = 0;
@@ -46,7 +47,11 @@ export function createTargetCheck(
     try {
       const response: unknown = await chrome.tabs.sendMessage(
         page.tabId,
-        { type: TARGET_CHECK_TYPE, selector } satisfies TargetCheckRequest,
+        {
+          type: TARGET_CHECK_TYPE,
+          selector,
+          ...(shouldReadValue() ? { includeCurrentValue: true } : {}),
+        } satisfies TargetCheckRequest,
         { frameId: 0 },
       );
       if (!isTargetCheckResponse(response)) throw new Error("invalid response");

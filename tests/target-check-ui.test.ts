@@ -46,6 +46,42 @@ test("入力停止から300ms後に問い合わせ，同じ指定なら再検索
   expect(sendMessage).toHaveBeenCalledTimes(1);
 });
 
+test.each([7, null, {}])("不正な現在値を持つ応答を反映しない: %j", async (currentValue) => {
+  sendMessage.mockResolvedValue({ url, status: "found", currentValue });
+  check.update(email, url, page);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(status.textContent).toBe("このページでは確認できません");
+  expect(onResult).toHaveBeenLastCalledWith(null);
+});
+
+test("現在値の取得要求は問い合わせ時点で必要な場合にだけ付ける", async () => {
+  check.dispose();
+  let needsValue = true;
+  check = createTargetCheck(status, onResult, () => needsValue);
+  check.update(email, url, page);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(sendMessage).toHaveBeenLastCalledWith(
+    7,
+    {
+      type: TARGET_CHECK_TYPE,
+      selector: email,
+      includeCurrentValue: true,
+    },
+    { frameId: 0 },
+  );
+  check.refresh();
+  needsValue = false;
+  await vi.advanceTimersByTimeAsync(300);
+  expect(sendMessage).toHaveBeenLastCalledWith(
+    7,
+    {
+      type: TARGET_CHECK_TYPE,
+      selector: email,
+    },
+    { frameId: 0 },
+  );
+});
+
 test.each([
   ["missing", "現在のページでは見つかりません"],
   ["ambiguous", "複数見つかりました。CSSセレクタで絞ってください"],

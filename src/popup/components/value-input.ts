@@ -103,7 +103,11 @@ export function createValueInput(
   for (const control of [value, select, output]) control.addEventListener("focus", focus);
 
   return {
-    setInfo(next: RadioInfo | ValueInputInfo | undefined): void {
+    setInfo(next: RadioInfo | ValueInputInfo | undefined, currentValue?: string): void {
+      if (currentValue !== undefined) {
+        value.value = currentValue;
+        useDirectValue = false;
+      }
       radio = next && "mode" in next ? next : undefined;
       field = next && "kind" in next ? next : undefined;
       if (radio?.mode === "direct" && useDirectValue) value.value = radio.value;

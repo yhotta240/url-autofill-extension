@@ -11,6 +11,7 @@ import {
 import { getFillBlockReason } from "./autofill.ts";
 import { captureForm, getCaptureForms } from "./form-capture.ts";
 import { getRadioInfo } from "./radio.ts";
+import { readTargetValue } from "./read-target-value.ts";
 import { resolveTarget } from "./resolver.ts";
 import { getTargetCandidates } from "./target-candidates.ts";
 import { getTargetInfo } from "./target-info.ts";
@@ -78,6 +79,7 @@ export function listenForTargetChecks(root: Document): () => void {
     if (!isTargetCheckRequest(message)) return;
     const result = resolveTarget(message.selector, root);
     const targetInfo = getTargetInfo(result);
+    const currentValue = message.includeCurrentValue ? readTargetValue(result) : undefined;
     const radio = getRadioInfo(result);
     const valueInput =
       result.status === "found" && result.kind === "element"
@@ -87,6 +89,7 @@ export function listenForTargetChecks(root: Document): () => void {
       url: view.location.href,
       status: result.status,
       ...(targetInfo ? { targetInfo } : {}),
+      ...(currentValue !== undefined ? { currentValue } : {}),
       ...(radio ? { radio } : {}),
       ...(valueInput ? { valueInput } : {}),
     } satisfies TargetCheckResponse);
