@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { MAX_FIELDS, MAX_URL_LENGTH, parseAutofillUrl } from "../src/content/parser.ts";
 import { setupUrlGenerator } from "../src/popup/components/url-generator.ts";
+import { FORM_CAPTURE_TYPE } from "../src/shared/form-capture.ts";
 import type { RadioInfo } from "../src/shared/target-check.ts";
 import { TARGET_CHECK_TYPE } from "../src/shared/target-check.ts";
 
@@ -272,7 +273,16 @@ beforeEach(() => {
     url: "https://example.com/form?q=1#/settings",
     status: "found",
   });
-  vi.stubGlobal("chrome", { tabs: { query, sendMessage }, storage: { local: { set: save } } });
+  vi.stubGlobal("chrome", {
+    tabs: {
+      query,
+      sendMessage: (tab: number, message: { type: string }, options: unknown) =>
+        message.type === FORM_CAPTURE_TYPE
+          ? Promise.resolve({ url: "https://example.com/form?q=1#/settings", forms: [] })
+          : sendMessage(tab, message, options),
+    },
+    storage: { local: { set: save } },
+  });
   vi.stubGlobal("navigator", { clipboard: { writeText } });
 });
 

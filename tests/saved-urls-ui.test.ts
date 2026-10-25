@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import "bootstrap/js/dist/tab.js";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { setupUrlLibrary } from "../src/popup/components/url-library.ts";
+import { TARGET_CHECK_TYPE } from "../src/shared/target-check.ts";
 import { SAVED_URL_PREFIX, type SavedUrl } from "../src/utils/saved-urls.ts";
 
 const html = readFileSync("public/popup.html", "utf8");
@@ -236,7 +237,9 @@ test.each([
   await flush();
   await vi.advanceTimersByTimeAsync(300);
   expect(document.querySelector("[data-target-status]")?.textContent).toBe("見つかりました");
-  expect(sendMessage).toHaveBeenCalledTimes(2);
+  expect(
+    sendMessage.mock.calls.filter(([, message]) => message.type === TARGET_CHECK_TYPE),
+  ).toHaveLength(2);
   expect(value.value).toBe("入力中の値");
   expect(field("generator-result").textContent).toBe(generated);
   expect(field("generator-copy-status").textContent).toBe("コピーしました．");

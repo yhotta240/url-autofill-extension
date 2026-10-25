@@ -2,13 +2,14 @@ import { getFillBlockReason } from "./autofill.ts";
 import type { FillTarget } from "./parser.ts";
 import { isRadio, resolveTarget } from "./resolver.ts";
 
-function selectorFor(element: Element, root: Document): string {
+export function selectorFor(element: Element, root: Document | Element): string {
   const identifies = (selector: string): boolean => {
     const matches = root.querySelectorAll(selector);
     return matches.length === 1 && matches[0] === element;
   };
-  if (element.id) {
-    const selector = `#${CSS.escape(element.id)}`;
+  const id = element.getAttribute("id");
+  if (id) {
+    const selector = `#${CSS.escape(id)}`;
     if (identifies(selector)) return selector;
   }
   const name = element.getAttribute("name");
@@ -18,9 +19,14 @@ function selectorFor(element: Element, root: Document): string {
   }
 
   const path: string[] = [];
-  for (let current: Element | null = element; current; current = current.parentElement) {
-    if (current.id) {
-      const selector = [`#${CSS.escape(current.id)}`, ...path].join(" > ");
+  for (
+    let current: Element | null = element;
+    current && current !== root;
+    current = current.parentElement
+  ) {
+    const currentId = current.getAttribute("id");
+    if (currentId) {
+      const selector = [`#${CSS.escape(currentId)}`, ...path].join(" > ");
       if (identifies(selector)) return selector;
     }
     let position = 1;
@@ -38,7 +44,7 @@ function selectorFor(element: Element, root: Document): string {
   return "";
 }
 
-function radioGroupSelector(radio: HTMLInputElement, root: Document) {
+export function radioGroupSelector(radio: HTMLInputElement, root: Document, preferForm = false) {
   if (!radio.name) return;
   const base = `input[type=radio][name=${CSS.escape(radio.name)}]`;
   const radios = Array.from(root.querySelectorAll<HTMLInputElement>(base)).filter(
@@ -53,18 +59,21 @@ function radioGroupSelector(radio: HTMLInputElement, root: Document) {
   )
     return;
 
-  const selectors = [base];
+  const selectors: string[] = [];
+  if (!preferForm) selectors.push(base);
   const form = radio.form;
   if (form) {
     const scope = selectorFor(form, root);
     if (scope) {
       selectors.push(`${scope} ${base}`);
-      const external = form.id ? `, ${base}[form=${CSS.escape(form.id)}]` : "";
+      const formId = form.getAttribute("id");
+      const external = formId ? `, ${base}[form=${CSS.escape(formId)}]` : "";
       selectors.push(`${scope} ${base}:not([form])${external}`);
     }
   } else {
     selectors.push(`${base}:not(form input):not([form])`);
   }
+  if (preferForm) selectors.push(base);
   for (const selector of selectors) {
     const result = resolveTarget({ kind: "selector", value: selector }, root);
     if (

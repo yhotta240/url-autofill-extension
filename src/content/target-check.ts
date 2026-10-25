@@ -1,3 +1,4 @@
+import { isFormCaptureRequest } from "../shared/form-capture.ts";
 import {
   isTargetCandidatesRequest,
   type TargetCandidatesResponse,
@@ -8,6 +9,7 @@ import {
   type ValueInputInfo,
 } from "../shared/target-check.ts";
 import { getFillBlockReason } from "./autofill.ts";
+import { captureForm, getCaptureForms } from "./form-capture.ts";
 import { getRadioInfo } from "./radio.ts";
 import { resolveTarget } from "./resolver.ts";
 import { getTargetCandidates } from "./target-candidates.ts";
@@ -45,6 +47,22 @@ export function listenForTargetChecks(root: Document): () => void {
     _sender,
     sendResponse,
   ) => {
+    if (isFormCaptureRequest(message)) {
+      try {
+        sendResponse({
+          url: view.location.href,
+          ...(message.action === "forms"
+            ? { forms: getCaptureForms(root) }
+            : captureForm(root, message.scope, message.existing)),
+        });
+      } catch (error) {
+        sendResponse({
+          url: view.location.href,
+          error: error instanceof Error ? error.message : "入力内容を取得できませんでした．",
+        });
+      }
+      return;
+    }
     if (isTargetCandidatesRequest(message)) {
       sendResponse({
         url: view.location.href,
