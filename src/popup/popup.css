@@ -35,6 +35,7 @@ html.sidepanel {
 
 #generator-copy-status:empty,
 #generator-save-status:empty,
+#generator-open-status:empty,
 #saved-source-status:empty,
 #saved-action-status:empty {
   display: none;
@@ -72,22 +73,27 @@ html.sidepanel {
   background: var(--bs-secondary-bg);
 }
 
+#url-generator .btn.generator-action {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+}
+
+#url-generator .generator-action[hidden] {
+  display: none;
+}
+
 .generator-code {
-  margin: 0;
-  padding: 0.5rem;
   max-block-size: 6rem;
-  overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: inherit;
-  line-height: 1.5;
-  color: var(--bs-body-color, #212529);
-  background-color: var(--bs-tertiary-bg, #f8f9fa);
 }
 
-.generator-code code {
-  font: inherit;
-  color: inherit;
+.generator-code.is-nowrap {
+  white-space: pre;
+  overflow-wrap: normal;
 }
 
 #url-generator {
@@ -216,7 +222,7 @@ html.sidepanel {
     max-width: 720px !important;
   }
 
-  i {
+  i:not(.generator-action > i) {
     font-size: 130% !important;
   }
 
@@ -252,7 +258,7 @@ html.sidepanel {
   margin-block: 1rem;
 }
 
-#popup-body pre {
+#popup-body pre:not(.generator-code) {
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
@@ -266,7 +272,7 @@ html.sidepanel {
   line-height: 1.5;
 }
 
-#popup-body pre code {
+#popup-body pre:not(.generator-code) code {
   color: inherit;
   font-family: var(--bs-font-monospace);
   white-space: pre;

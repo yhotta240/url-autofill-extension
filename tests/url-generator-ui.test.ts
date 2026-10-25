@@ -10,6 +10,7 @@ import { TARGET_CHECK_TYPE } from "../src/shared/target-check.ts";
 const html = readFileSync("public/popup.html", "utf8");
 const query = vi.fn();
 const writeText = vi.fn();
+const createTab = vi.fn();
 const save = vi.fn();
 const sendMessage = vi.fn();
 
@@ -266,6 +267,7 @@ beforeEach(() => {
   document.body.innerHTML = parsed.getElementById("settings")?.outerHTML ?? "";
   query.mockReset().mockResolvedValue([{ id: 7, url: "https://example.com/form?q=1#/settings" }]);
   writeText.mockReset().mockResolvedValue(undefined);
+  createTab.mockReset().mockResolvedValue({});
   save.mockReset();
   sendMessage.mockReset().mockResolvedValue({
     url: "https://example.com/form?q=1#/settings",
@@ -274,6 +276,7 @@ beforeEach(() => {
   vi.stubGlobal("chrome", {
     tabs: {
       query,
+      create: createTab,
       sendMessage: (tab: number, message: { type: string }, options: unknown) =>
         message.type === FORM_CAPTURE_TYPE
           ? Promise.resolve({ url: "https://example.com/form?q=1#/settings", forms: [] })
@@ -412,6 +415,90 @@ test("コピー操作と結果を表示し，入力が変わると結果表示�
   expect(document.getElementById("generator-copy-status")?.textContent).toBe("");
 });
 
+test("折り返しの切り替えは生成URLとコピー結果を変えない", async () => {
+  await setup();
+  const before = generated();
+  button().click();
+  await Promise.resolve();
+  const wrap = document.getElementById("generator-wrap") as HTMLButtonElement;
+  const code = document.getElementById("generator-code");
+  expect(wrap.getAttribute("aria-pressed")).toBe("false");
+  expect(wrap.classList.contains("active")).toBe(false);
+  expect(wrap.title).toBe("折り返しをオンにする");
+  expect(code?.classList.contains("is-nowrap")).toBe(true);
+  wrap.click();
+  expect(wrap.getAttribute("aria-pressed")).toBe("true");
+  expect(wrap.classList.contains("active")).toBe(true);
+  expect(wrap.title).toBe("折り返しをオフにする");
+  expect(code?.classList.contains("is-nowrap")).toBe(false);
+  expect(generated()).toBe(before);
+  expect(document.getElementById("generator-copy-status")?.textContent).toBe("コピーしました．");
+  change("generator-value", "edited");
+  expect(wrap.getAttribute("aria-pressed")).toBe("true");
+  wrap.click();
+  expect(wrap.getAttribute("aria-pressed")).toBe("false");
+  expect(wrap.classList.contains("active")).toBe(false);
+  expect(code?.classList.contains("is-nowrap")).toBe(true);
+  expect(createTab).not.toHaveBeenCalled();
+  expect(save).not.toHaveBeenCalled();
+});
+
+test("生成したURLを新しいタブで開き，無効な入力時には開かない", async () => {
+  await setup();
+  const open = document.getElementById("generator-open") as HTMLButtonElement;
+  const url = generated();
+  expect(open.disabled).toBe(false);
+  open.click();
+  open.click();
+  await Promise.resolve();
+  expect(createTab).toHaveBeenCalledExactlyOnceWith({ url });
+  expect(open.disabled).toBe(false);
+  expect(writeText).not.toHaveBeenCalled();
+  expect(save).not.toHaveBeenCalled();
+  change("generator-page-url", "javascript:alert(1)");
+  expect(open.disabled).toBe(true);
+  open.click();
+  expect(createTab).toHaveBeenCalledTimes(1);
+  change("generator-page-url", "https://example.com/form");
+  expect(open.disabled).toBe(false);
+});
+
+test("タブ作成に失敗した場合は再試行でき，編集でエラー表示を消す", async () => {
+  await setup();
+  const open = document.getElementById("generator-open") as HTMLButtonElement;
+  createTab.mockRejectedValueOnce(new Error("denied"));
+  open.click();
+  await Promise.resolve();
+  expect(document.getElementById("generator-open-status")?.textContent).toBe(
+    "ページを開けませんでした．",
+  );
+  expect(open.disabled).toBe(false);
+  change("generator-value", "edited");
+  expect(document.getElementById("generator-open-status")?.textContent).toBe("");
+  open.click();
+  await Promise.resolve();
+  expect(createTab).toHaveBeenLastCalledWith({ url: generated() });
+});
+
+test("タブ作成待機中の編集後は古い失敗表示を出さず，入力の無効状態を維持する", async () => {
+  await setup();
+  let rejectOpen: (reason: Error) => void = () => {};
+  createTab.mockReturnValueOnce(
+    new Promise((_resolve, reject) => {
+      rejectOpen = reject;
+    }),
+  );
+  const open = document.getElementById("generator-open") as HTMLButtonElement;
+  open.click();
+  change("generator-value", "edited");
+  expect(open.disabled).toBe(true);
+  change("generator-page-url", "");
+  rejectOpen(new Error("denied"));
+  await Promise.resolve();
+  expect(document.getElementById("generator-open-status")?.textContent).toBe("");
+  expect(open.disabled).toBe(true);
+});
+
 test("コピー拒否時には手動コピーを案内し，例外をログへ出さない", async () => {
   const logError = vi.spyOn(console, "error").mockImplementation(() => {});
   writeText.mockRejectedValue(new Error("denied"));
@@ -446,6 +533,7 @@ test("Enterによるsubmitを止め，コピーやページ遷移を実行しな
   form?.dispatchEvent(event);
   expect(event.defaultPrevented).toBe(true);
   expect(writeText).not.toHaveBeenCalled();
+  expect(createTab).not.toHaveBeenCalled();
 });
 
 test("項目の追加・編集で複数のセレクタと入力値をまとめて生成する", async () => {

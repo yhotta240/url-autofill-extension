@@ -19,6 +19,10 @@ export function setupUrlGenerator(
   const output = form.querySelector<HTMLElement>("#generator-output");
   const result = output?.querySelector<HTMLElement>("#generator-result");
   const copy = output?.querySelector<HTMLButtonElement>("#generator-copy");
+  const open = output?.querySelector<HTMLButtonElement>("#generator-open");
+  const openStatus = output?.querySelector<HTMLElement>("#generator-open-status");
+  const wrap = output?.querySelector<HTMLButtonElement>("#generator-wrap");
+  const code = output?.querySelector<HTMLElement>("#generator-code");
   const error = output?.querySelector<HTMLElement>("#generator-error");
   const sourceStatus = form.querySelector<HTMLElement>("#generator-source-status");
   const copyStatus = output?.querySelector<HTMLElement>("#generator-copy-status");
@@ -34,6 +38,10 @@ export function setupUrlGenerator(
     !output ||
     !result ||
     !copy ||
+    !open ||
+    !openStatus ||
+    !wrap ||
+    !code ||
     !error ||
     !sourceStatus ||
     !copyStatus ||
@@ -51,26 +59,45 @@ export function setupUrlGenerator(
   let currentPage: CurrentPage | null | undefined;
   let editingId: string | undefined;
   let saving = false;
+  let opening = false;
   let savedName = "";
   let baseline = "";
   let rendering = false;
   let sampleUntouched = true;
+
+  const updateSaveLabel = (label: string): void => {
+    save.setAttribute("aria-label", label);
+    save.title = label;
+  };
 
   function snapshot(): string {
     return JSON.stringify([savedName, pageUrl?.value, items.map((item) => item.readEntry())]);
   }
 
   function render(showErrors = true): void {
-    if (rendering || !pageUrl || !result || !copy || !error || !copyStatus || !save || !saveStatus)
+    if (
+      rendering ||
+      !pageUrl ||
+      !result ||
+      !copy ||
+      !open ||
+      !openStatus ||
+      !error ||
+      !copyStatus ||
+      !save ||
+      !saveStatus
+    )
       return;
     rendering = true;
     if (showErrors) interacted = true;
     revision += 1;
     result.textContent = "";
     copy.disabled = true;
+    open.disabled = true;
     save.disabled = true;
     copyStatus.textContent = "";
     saveStatus.textContent = "";
+    openStatus.textContent = "";
     error.hidden = true;
     error.textContent = "";
     const errors = items.map((item, index) => {
@@ -93,6 +120,7 @@ export function setupUrlGenerator(
         items.map((item) => item.readEntry()),
       );
       copy.disabled = false;
+      open.disabled = opening;
       save.disabled = saving;
     } catch (failure) {
       if (showErrors) {
@@ -174,6 +202,30 @@ export function setupUrlGenerator(
     }
   });
 
+  wrap.addEventListener("click", () => {
+    const wrapped = wrap.getAttribute("aria-pressed") !== "true";
+    wrap.setAttribute("aria-pressed", String(wrapped));
+    wrap.classList.toggle("active", wrapped);
+    wrap.title = wrapped ? "折り返しをオフにする" : "折り返しをオンにする";
+    code.classList.toggle("is-nowrap", !wrapped);
+  });
+
+  open.addEventListener("click", async () => {
+    if (open.disabled || !result.textContent) return;
+    const openedRevision = revision;
+    opening = true;
+    open.disabled = true;
+    openStatus.textContent = "";
+    try {
+      await chrome.tabs.create({ url: result.textContent });
+    } catch {
+      if (openedRevision === revision) openStatus.textContent = "ページを開けませんでした．";
+    } finally {
+      opening = false;
+      open.disabled = !result.textContent;
+    }
+  });
+
   save.addEventListener("click", async () => {
     if (save.disabled || !result.textContent) return;
     const enteredName = root.defaultView?.prompt("保存名を入力してください．", savedName);
@@ -200,7 +252,7 @@ export function setupUrlGenerator(
           : "保存しました．";
         if (editingId !== undefined) {
           editingId = undefined;
-          save.textContent = "保存";
+          updateSaveLabel("保存");
           cancel.hidden = true;
           options.onUpdated?.();
         }
@@ -254,7 +306,7 @@ export function setupUrlGenerator(
   );
   cancel.addEventListener("click", () => {
     editingId = undefined;
-    save.textContent = "保存";
+    updateSaveLabel("保存");
     cancel.hidden = true;
     savedName = "";
     urlEdited = false;
@@ -317,7 +369,7 @@ export function setupUrlGenerator(
         replaceItems(request.entries);
         editingId = item.id;
         savedName = item.name;
-        save.textContent = "更新";
+        updateSaveLabel("更新");
         cancel.hidden = false;
         render();
         baseline = snapshot();

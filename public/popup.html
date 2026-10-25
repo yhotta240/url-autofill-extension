@@ -123,18 +123,33 @@
       <form id="url-generator" aria-labelledby="url-generator-heading" autocomplete="off" novalidate>
         <h2 class="h6 mb-2" id="url-generator-heading">自動入力URLを作成</h2>
         <section class="mb-2" id="generator-output" aria-labelledby="generator-output-label">
-          <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">
             <span id="generator-output-label">生成URL</span>
-            <div class="d-flex align-items-center gap-1">
-              <button type="button" class="btn btn-primary btn-sm" id="generator-copy" disabled>URLをコピー</button>
-              <button type="button" class="btn btn-outline-secondary btn-sm" id="generator-save" disabled>保存</button>
-              <button type="button" class="btn btn-outline-secondary btn-sm" id="generator-cancel" hidden>キャンセル</button>
+            <div class="d-flex align-items-center gap-1 ms-auto">
+              <button type="button" class="btn btn-outline-secondary btn-sm border-0 align-items-center justify-content-center flex-shrink-0 p-0 generator-action" id="generator-wrap" aria-label="長いURLを折り返す" title="折り返しをオンにする" aria-pressed="false" aria-controls="generator-code">
+                <i class="bi bi-text-wrap" style="font-size: 14px; line-height: 1;" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="btn btn-outline-secondary btn-sm border-0 align-items-center justify-content-center flex-shrink-0 p-0 generator-action" id="generator-copy" aria-label="URLをコピー" title="URLをコピー" disabled>
+                <i class="bi bi-clipboard" style="font-size: 14px; line-height: 1;" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="btn btn-outline-secondary btn-sm border-0 align-items-center justify-content-center flex-shrink-0 p-0 generator-action" id="generator-open" aria-label="新しいタブで開く" title="新しいタブで開く" disabled>
+                <i class="bi bi-box-arrow-up-right" style="font-size: 14px; line-height: 1;" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="btn btn-primary btn-sm align-items-center justify-content-center flex-shrink-0 p-0 generator-action" id="generator-save" aria-label="保存" title="保存" disabled>
+                <i class="bi bi-floppy" style="font-size: 14px; line-height: 1;" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="btn btn-outline-secondary btn-sm border-0 align-items-center justify-content-center flex-shrink-0 p-0 generator-action" id="generator-cancel" aria-label="キャンセル" title="キャンセル" hidden>
+                <i class="bi bi-x-lg" style="font-size: 14px; line-height: 1;" aria-hidden="true"></i>
+              </button>
             </div>
           </div>
-          <pre class="generator-code" tabindex="0" aria-labelledby="generator-output-label" aria-describedby="generator-error"><code id="generator-result"></code></pre>
+          <div class="border rounded bg-body-tertiary">
+            <pre class="generator-code is-nowrap m-0 p-2 text-body lh-base" id="generator-code" tabindex="0" aria-labelledby="generator-output-label" aria-describedby="generator-error"><code id="generator-result"></code></pre>
+          </div>
           <p class="small text-danger mt-1 mb-0" id="generator-error" role="status" hidden></p>
           <p class="small mt-1 mb-0" id="generator-copy-status" role="status"></p>
           <p class="small mt-1 mb-0" id="generator-save-status" role="status"></p>
+          <p class="small mt-1 mb-0" id="generator-open-status" role="status"></p>
         </section>
         <div class="mb-2">
           <label for="generator-page-url" class="form-label">対象ページURL<span class="text-danger ms-1" aria-hidden="true">*</span></label>
