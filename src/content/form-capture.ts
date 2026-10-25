@@ -105,8 +105,10 @@ export function captureForm(root: Document, scope: string | null, existing: Fill
       continue;
     } else if (element instanceof view.HTMLSelectElement) {
       const option = Array.from(element.options).find((item) => item.value === value);
+      const selectedCount = element.selectedOptions.length;
       if (
-        (element.multiple && element.selectedOptions.length > 1) ||
+        (element.multiple && selectedCount > 1) ||
+        (selectedCount === 0 && option !== undefined) ||
         (option && (option.disabled || option.closest("optgroup[disabled]")))
       ) {
         skipped += 1;

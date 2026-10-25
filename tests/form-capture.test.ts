@@ -126,6 +126,30 @@ test("入力対象外や再現できない選択状態は値を取り込まな�
   expect(result.skipped).toBe(8);
 });
 
+test.each([
+  false,
+  true,
+])("空文字の設定で選択状態が変わる未選択selectだけを除外する: multiple=%s", (multiple) => {
+  const attribute = multiple ? "multiple" : "";
+  document.body.innerHTML = `<select id="unselected-empty" ${attribute}><option value="">空</option><option value="a">A</option></select><select id="unselected-no-empty" ${attribute}><option value="a">A</option></select><select id="selected-empty" ${attribute}><option value="" selected>空</option></select>`;
+  const selects = [...document.querySelectorAll("select")];
+  selects[0].selectedIndex = -1;
+  selects[1].selectedIndex = -1;
+  const result = captureForm(document, null, []);
+  expect(result.skipped).toBe(1);
+  expect(result.entries).toEqual([
+    { target: { kind: "selector", value: "#unselected-no-empty" }, value: "" },
+    { target: { kind: "selector", value: "#selected-empty" }, value: "" },
+  ]);
+  expect(selects.map((select) => select.selectedOptions.length)).toEqual([0, 0, 1]);
+  for (const entry of result.entries) {
+    const select = document.querySelector(entry.target.value);
+    if (!select) throw new Error("入力先が見つかりません");
+    expect(fillElement(select, entry.value)).toBe("filled");
+  }
+  expect(selects.map((select) => select.selectedOptions.length)).toEqual([0, 0, 1]);
+});
+
 test("name・CSSの違いやラジオの指定範囲にかかわらず，既存の入力先は追加しない", () => {
   document.body.innerHTML =
     '<input name="email" id="email" value="page"><input type="radio" id="a" name="plan" value="a"><input type="radio" id="b" name="plan" value="b" checked><input type="checkbox" id="new"><input name="" id="blank-name" value="blank">';
