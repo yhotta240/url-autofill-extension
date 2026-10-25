@@ -4,7 +4,11 @@ import type { Resolution } from "../content/resolver.ts";
 export const TARGET_CHECK_TYPE = "url-autofill:check-target";
 
 export type TargetCheckRequest = { type: typeof TARGET_CHECK_TYPE; target: FillTarget };
-export type TargetCheckResponse = { url: string; status: Resolution["status"] };
+export type RadioOption = { label: string; value: string; disabled: boolean };
+export type RadioInfo =
+  | { mode: "direct"; group?: string; value: string }
+  | { mode: "group"; group: string; options: RadioOption[] };
+export type TargetCheckResponse = { url: string; status: Resolution["status"]; radio?: RadioInfo };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -25,6 +29,31 @@ export function isTargetCheckResponse(value: unknown): value is TargetCheckRespo
     (value.status === "found" ||
       value.status === "missing" ||
       value.status === "ambiguous" ||
-      value.status === "invalid-selector")
+      value.status === "invalid-selector" ||
+      value.status === "invalid-radio-group") &&
+    (value.radio === undefined || (value.status === "found" && isRadioInfo(value.radio)))
+  );
+}
+
+function isRadioInfo(value: unknown): value is RadioInfo {
+  if (!isRecord(value)) return false;
+  if (value.mode === "direct") {
+    return (
+      typeof value.value === "string" &&
+      (value.group === undefined || typeof value.group === "string")
+    );
+  }
+  return (
+    value.mode === "group" &&
+    typeof value.group === "string" &&
+    Array.isArray(value.options) &&
+    value.options.length > 0 &&
+    value.options.every(
+      (option) =>
+        isRecord(option) &&
+        typeof option.label === "string" &&
+        typeof option.value === "string" &&
+        typeof option.disabled === "boolean",
+    )
   );
 }

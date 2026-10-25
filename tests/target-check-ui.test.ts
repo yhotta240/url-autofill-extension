@@ -8,15 +8,17 @@ const url = "https://example.com/form?q=1";
 const page = { tabId: 7, url };
 const email: FillTarget = { kind: "field", value: "email" };
 const sendMessage = vi.fn();
+const onResult = vi.fn();
 let status: HTMLElement;
 let check: ReturnType<typeof createTargetCheck>;
 
 beforeEach(() => {
   vi.useFakeTimers();
   sendMessage.mockReset().mockResolvedValue({ url, status: "found" });
+  onResult.mockReset();
   vi.stubGlobal("chrome", { tabs: { sendMessage } });
   status = document.createElement("p");
-  check = createTargetCheck(status);
+  check = createTargetCheck(status, onResult);
 });
 
 afterEach(() => {
@@ -83,13 +85,24 @@ test("同じ指定でも読み込み完了後は再確認し，前の文書か�
   );
   check.update(email, url, page);
   await vi.advanceTimersByTimeAsync(300);
+  const response = {
+    url,
+    status: "found",
+    radio: {
+      mode: "group",
+      group: "plan",
+      options: [{ label: "B", value: "b", disabled: false }],
+    },
+  };
+  sendMessage.mockResolvedValueOnce(response);
   check.update(email, url, { ...page, documentVersion: 1 });
   await vi.advanceTimersByTimeAsync(300);
   expect(sendMessage).toHaveBeenCalledTimes(2);
   expect(status.textContent).toBe("見つかりました");
-  oldReply({ url, status: "missing" });
+  oldReply({ url, status: "found", radio: { mode: "direct", value: "old" } });
   await Promise.resolve();
   expect(status.textContent).toBe("見つかりました");
+  expect(onResult).toHaveBeenLastCalledWith(response);
   check.update(email, url, { ...page, documentVersion: 1 });
   await vi.advanceTimersByTimeAsync(300);
   expect(sendMessage).toHaveBeenCalledTimes(2);
@@ -100,6 +113,7 @@ test("別のURLでは問い合わせず，確認中にページが変わった�
   await vi.advanceTimersByTimeAsync(300);
   expect(sendMessage).not.toHaveBeenCalled();
   expect(status.textContent).toBe("現在のページとURLが異なるため確認できません");
+  expect(onResult).toHaveBeenLastCalledWith(null);
 
   sendMessage.mockResolvedValue({ url: "https://example.com/next", status: "found" });
   check.update(email, url, page);

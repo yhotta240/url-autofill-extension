@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { MAX_FIELDS, MAX_URL_LENGTH, parseAutofillUrl } from "../src/content/parser.ts";
 import { setupUrlGenerator } from "../src/popup/components/url-generator.ts";
+import type { RadioInfo } from "../src/shared/target-check.ts";
 import { TARGET_CHECK_TYPE } from "../src/shared/target-check.ts";
 
 const html = readFileSync("public/popup.html", "utf8");
@@ -50,6 +51,207 @@ async function setup(): Promise<void> {
   setupUrlGenerator();
   await Promise.resolve();
 }
+
+function radioResponse(radio: RadioInfo) {
+  return { url: "https://example.com/form?q=1#/settings", status: "found", radio };
+}
+const radioOptions = [
+  { label: "プランA", value: "a", disabled: false },
+  { label: "プランB", value: "b", disabled: false },
+  { label: "無効", value: "c", disabled: true },
+];
+function radioSelect(index = 0): HTMLSelectElement {
+  return items()[index].querySelector<HTMLSelectElement>(
+    "[data-radio-select]",
+  ) as HTMLSelectElement;
+}
+function chooseRadio(value: string, index = 0): void {
+  radioSelect(index).value = value;
+  radioSelect(index).dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+test("新しく単体ラジオを指定したときだけvalueを設定し，値だけを表示する", async () => {
+  await setup();
+  sendMessage.mockResolvedValue(radioResponse({ mode: "direct", group: "plan", value: "a" }));
+  change("generator-target", "radio-a");
+  await vi.advanceTimersByTimeAsync(300);
+  expect(input("generator-value").value).toBe("a");
+  expect(input("generator-value").hidden).toBe(true);
+  const output = items()[0].querySelector<HTMLOutputElement>("[data-radio-output]");
+  expect(output?.hidden).toBe(false);
+  expect(output?.textContent).toBe("a");
+  expect(radioSelect().hidden).toBe(true);
+  expect(parseAutofillUrl(generated())?.entries[0].value).toBe("a");
+
+  sendMessage.mockResolvedValue({ url: "https://example.com/form?q=1#/settings", status: "found" });
+  change("generator-target", "plain");
+  await vi.advanceTimersByTimeAsync(300);
+  expect(input("generator-value").hidden).toBe(false);
+  expect(input("generator-value").value).toBe("a");
+});
+
+test("グループの不一致値は未選択にし，選択後に生成を許可する", async () => {
+  await setup();
+  sendMessage.mockResolvedValue(
+    radioResponse({ mode: "group", group: "plan", options: radioOptions }),
+  );
+  change("generator-target", "plan");
+  await vi.advanceTimersByTimeAsync(300);
+  expect(radioSelect().hidden).toBe(false);
+  expect(radioSelect().value).toBe("");
+  expect([...radioSelect().options].map((option) => option.textContent)).toEqual([
+    "選択してください",
+    "プランA",
+    "プランB",
+    "無効",
+  ]);
+  expect(radioSelect().options[3].disabled).toBe(true);
+  expect(input("generator-value").value).toBe("test@example.com");
+  expect(button().disabled).toBe(true);
+  expect((document.getElementById("generator-save") as HTMLButtonElement).disabled).toBe(true);
+  chooseRadio("1");
+  expect(input("generator-value").value).toBe("b");
+  expect(parseAutofillUrl(generated())?.entries[0].value).toBe("b");
+  expect(button().disabled).toBe(false);
+});
+
+test.each([
+  "",
+  "legacy",
+])("保存済みの単体ラジオ値は読み込み・再取得で書き換えない: %j", async (value) => {
+  const generator = setupUrlGenerator();
+  await Promise.resolve();
+  sendMessage.mockResolvedValue(radioResponse({ mode: "direct", group: "plan", value: "a" }));
+  generator?.edit({
+    id: "saved",
+    name: "保存",
+    createdAt: 1,
+    url: `https://example.com/form?q=1#/settings#url-autofill:radio-a=${value}`,
+  });
+  await vi.advanceTimersByTimeAsync(300);
+  expect(input("generator-value").value).toBe(value);
+  expect(input("generator-value").hidden).toBe(false);
+  input("generator-value").focus();
+  await vi.advanceTimersByTimeAsync(300);
+  expect(input("generator-value").value).toBe(value);
+  expect(parseAutofillUrl(generated())?.entries[0].value).toBe(value);
+});
+
+test.each(["", "b", "c"])("グループの保存値を復元し，空値と未選択を区別する: %j", async (value) => {
+  const generator = setupUrlGenerator();
+  await Promise.resolve();
+  const options = [...radioOptions, { label: "空", value: "", disabled: false }];
+  sendMessage.mockResolvedValue(radioResponse({ mode: "group", group: "plan", options }));
+  generator?.edit({
+    id: "saved",
+    name: "保存",
+    createdAt: 1,
+    url: `https://example.com/form?q=1#/settings#url-autofill:plan=${value}`,
+  });
+  await vi.advanceTimersByTimeAsync(300);
+  expect(radioSelect().value).toBe(String(options.findIndex((option) => option.value === value)));
+  expect(input("generator-value").value).toBe(value);
+  expect(button().disabled).toBe(value === "c");
+});
+
+test.each([
+  ["direct-a", "direct-b"],
+  ["group-a", "group-b"],
+  ["direct-a", "group-b"],
+])("同じラジオグループの重複選択を止める: %s / %s", async (first, second) => {
+  await setup();
+  sendMessage.mockImplementation(async (_tab, message) => {
+    if (message.type !== TARGET_CHECK_TYPE)
+      return { url: "https://example.com/form?q=1#/settings", candidates: [] };
+    return radioResponse(
+      message.target.value.startsWith("direct")
+        ? { mode: "direct", group: "plan", value: message.target.value.endsWith("a") ? "a" : "b" }
+        : { mode: "group", group: "plan", options: radioOptions },
+    );
+  });
+  change("generator-target", first);
+  await vi.advanceTimersByTimeAsync(300);
+  if (first.startsWith("group")) chooseRadio("0");
+  add();
+  change("generator-target", second, 1);
+  await vi.advanceTimersByTimeAsync(300);
+  if (second.startsWith("group")) chooseRadio("1", 1);
+  expect(error().textContent).toContain("同じラジオグループ");
+  expect(button().disabled).toBe(true);
+  remove(1);
+  expect(button().disabled).toBe(false);
+});
+
+test("別フォームのラジオと単体の解除は同じグループとの選択競合にしない", async () => {
+  const generator = setupUrlGenerator();
+  await Promise.resolve();
+  sendMessage.mockImplementation(async (_tab, message) =>
+    radioResponse({
+      mode: "direct",
+      group: message.target?.value === "other" ? "other-form" : "plan",
+      value: "a",
+    }),
+  );
+  generator?.edit({
+    id: "saved",
+    name: "保存",
+    createdAt: 1,
+    url: "https://example.com/form?q=1#/settings#url-autofill:clear=&select=a&other=a",
+  });
+  await vi.advanceTimersByTimeAsync(300);
+  expect(button().disabled).toBe(false);
+  expect(parseAutofillUrl(generated())?.entries.map((entry) => entry.value)).toEqual([
+    "",
+    "a",
+    "a",
+  ]);
+});
+
+test("再取得は値・フォーカス・コントロールを維持し，選択肢だけ更新する", async () => {
+  await setup();
+  sendMessage.mockResolvedValue(
+    radioResponse({ mode: "group", group: "plan", options: radioOptions }),
+  );
+  change("generator-target", "plan");
+  await vi.advanceTimersByTimeAsync(300);
+  chooseRadio("1");
+  const select = radioSelect();
+  const selectedOption = select.options[2];
+  select.focus();
+  await vi.advanceTimersByTimeAsync(300);
+  expect(select.options[2]).toBe(selectedOption);
+  expect(document.activeElement).toBe(select);
+  expect(input("generator-value").value).toBe("b");
+  select.blur();
+  sendMessage.mockResolvedValue(
+    radioResponse({ mode: "group", group: "plan", options: radioOptions.slice(0, 1) }),
+  );
+  select.focus();
+  await vi.advanceTimersByTimeAsync(300);
+  expect(radioSelect()).toBe(select);
+  expect(document.activeElement).toBe(select);
+  expect(input("generator-value").value).toBe("b");
+  expect(select.value).toBe("");
+  expect(button().disabled).toBe(true);
+});
+
+test("不正なグループを拒否し，取得失敗時は値を保持して自由入力へ戻す", async () => {
+  await setup();
+  sendMessage.mockResolvedValue({
+    url: "https://example.com/form?q=1#/settings",
+    status: "invalid-radio-group",
+  });
+  change("generator-target", "mixed");
+  await vi.advanceTimersByTimeAsync(300);
+  expect(button().disabled).toBe(true);
+  expect(error().textContent).toContain("同じグループ");
+  sendMessage.mockRejectedValue(new Error("unavailable"));
+  input("generator-value").focus();
+  await vi.advanceTimersByTimeAsync(300);
+  expect(button().disabled).toBe(false);
+  expect(input("generator-value").hidden).toBe(false);
+  expect(input("generator-value").value).toBe("test@example.com");
+});
 
 beforeEach(() => {
   vi.useFakeTimers();

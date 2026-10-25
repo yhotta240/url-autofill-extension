@@ -1,15 +1,112 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { test } from "vitest";
-import { fillElement } from "../src/content/autofill.ts";
+import { fillElement, fillRadioGroup } from "../src/content/autofill.ts";
 import { resolveTarget } from "../src/content/resolver.ts";
+
+test("ラジオの単体指定は同名の他ボタンへ展開しない", () => {
+  const { document } = new JSDOM(
+    '<input type="radio" name="plan" id="a" value="a"><input type="radio" name="plan" value="b">',
+  ).window;
+  const result = resolveTarget({ kind: "field", value: "a" }, document);
+  assert.ok(result.status === "found" && result.kind === "element");
+  assert.equal(result.element.id, "a");
+});
+
+test.each([
+  { kind: "field", value: "plan" },
+  { kind: "selector", value: "#scope input" },
+  { kind: "selector", value: "#scope" },
+] as const)("ラジオのグループは指定範囲のページ順で解決する: %j", (target) => {
+  const { document } = new JSDOM(
+    '<fieldset id="scope"><legend>プラン</legend><label><input type="radio" name="plan" value="a">A</label><input type="radio" name="plan" value="b"></fieldset>',
+  ).window;
+  const result = resolveTarget(target, document);
+  assert.ok(result.status === "found" && result.kind === "radio-group");
+  assert.deepEqual(
+    result.elements.map((radio) => radio.value),
+    ["a", "b"],
+  );
+});
+
+test("親のhiddenを除外し，範囲外の同名ラジオへ展開しない", () => {
+  const { document } = new JSDOM(
+    '<div id="scope"><input type="hidden" name="plan"><label><input type="radio" name="plan" value="a">A</label></div><input type="radio" name="plan" value="b">',
+  ).window;
+  const result = resolveTarget({ kind: "selector", value: "#scope" }, document);
+  assert.ok(result.status === "found" && result.kind === "radio-group");
+  assert.equal(result.elements.length, 1);
+});
+
+test.each([
+  '<input type="radio" name="x" value="a"><input type="radio" name="y" value="b">',
+  '<input type="radio" name="x" value="a"><input name="x">',
+  '<input type="radio" name="x" value="a"><textarea></textarea>',
+  '<input type="radio" name="x" value="a"><select></select>',
+  '<input type="radio" name="x" value="a"><input type="checkbox" name="x">',
+  '<input type="radio" name="x" value="a"><button>送信</button>',
+  '<input type="radio" value="a"><input type="radio" value="b">',
+  '<input type="radio" name="x" value="a"><input type="radio" name="x" value="a">',
+  '<form><input type="radio" name="x" value="a"></form><form><input type="radio" name="x" value="b"></form>',
+])("異なるグループ・入力型・空name・重複valueを拒否する: %s", (html) => {
+  const { document } = new JSDOM(`<div id="scope">${html}</div>`).window;
+  assert.equal(
+    resolveTarget({ kind: "selector", value: "#scope" }, document).status,
+    "invalid-radio-group",
+  );
+});
+
+test("親要素が複数一致した場合は配下をまとめない", () => {
+  const { document } = new JSDOM(
+    '<label><input type="radio" name="x" value="a"></label><label><input type="radio" name="x" value="b"></label>',
+  ).window;
+  assert.equal(
+    resolveTarget({ kind: "selector", value: "label" }, document).status,
+    "invalid-radio-group",
+  );
+});
+
+test("グループ判定は祖先ではなくform属性による所有者を使う", () => {
+  const { document } = new JSDOM(
+    '<form id="owner"></form><div id="scope"><input type="radio" name="x" form="owner" value="a"><input type="radio" name="x" form="owner" value="b"></div>',
+  ).window;
+  const result = resolveTarget({ kind: "selector", value: "#scope" }, document);
+  assert.ok(result.status === "found" && result.kind === "radio-group");
+  result.elements[1].removeAttribute("form");
+  assert.equal(
+    resolveTarget({ kind: "selector", value: "#scope" }, document).status,
+    "invalid-radio-group",
+  );
+});
+
+test("グループの空valueは選択し，単体の空値は従来どおり解除する", () => {
+  const { document } = new JSDOM(
+    '<input type="radio" name="x" value=""><input type="radio" name="x" value="b" checked><input type="radio" name="x" value="disabled" disabled>',
+  ).window;
+  const radios = [...document.querySelectorAll("input")];
+  const changed: string[] = [];
+  document.addEventListener("input", () => changed.push("input"));
+  document.addEventListener("change", () => changed.push("change"));
+  assert.equal(fillRadioGroup(radios, ""), "filled");
+  assert.equal(radios[0].checked, true);
+  assert.equal(radios[1].checked, false);
+  assert.deepEqual(changed, ["input", "change"]);
+  assert.equal(fillElement(radios[0], ""), "filled");
+  assert.equal(radios[0].checked, false);
+  assert.equal(fillRadioGroup(radios, "disabled"), "disabled");
+  assert.deepEqual(
+    radios.map((radio) => radio.value),
+    ["", "b", "disabled"],
+  );
+});
 
 test("nameを優先し，一致しない場合のみidで検索する", () => {
   const { document } = new JSDOM('<input name="email"><input id="email"><input id="only-id">')
     .window;
   const named = resolveTarget({ kind: "field", value: "email" }, document);
   assert.equal(named.status, "found");
-  if (named.status === "found") assert.equal(named.element.getAttribute("name"), "email");
+  if (named.status === "found" && named.kind === "element")
+    assert.equal(named.element.getAttribute("name"), "email");
   assert.equal(resolveTarget({ kind: "field", value: "only-id" }, document).status, "found");
   assert.equal(resolveTarget({ kind: "field", value: "missing" }, document).status, "missing");
 });
@@ -25,7 +122,8 @@ test("非フォーム要素のnameは重複判定から除外する", () => {
   ]) {
     const result = resolveTarget({ kind: "field", value: name }, document);
     assert.equal(result.status, "found");
-    if (result.status === "found") assert.equal(result.element.tagName, tag);
+    if (result.status === "found" && result.kind === "element")
+      assert.equal(result.element.tagName, tag);
   }
 });
 
@@ -33,7 +131,8 @@ test("非フォーム要素だけのnameに妨げられずidへフォールバ�
   const { document } = new JSDOM('<meta name="email"><input id="email">').window;
   const result = resolveTarget({ kind: "field", value: "email" }, document);
   assert.equal(result.status, "found");
-  if (result.status === "found") assert.equal(result.element.id, "email");
+  if (result.status === "found" && result.kind === "element")
+    assert.equal(result.element.id, "email");
 });
 
 test.each([
@@ -45,7 +144,7 @@ test.each([
     `<input type="hidden" ${attribute}><input type="email" ${attribute}>`,
   ).window;
   const result = resolveTarget(target, document);
-  assert.ok(result.status === "found", result.status);
+  assert.ok(result.status === "found" && result.kind === "element", result.status);
   assert.equal(result.element, document.querySelector('input[type="email"]'));
   result.element.remove();
   assert.equal(resolveTarget(target, document).status, "missing");
@@ -56,7 +155,7 @@ test("nameがhidden入力にしか一致しない場合はidへフォールバ�
     '<input type="hidden" name="email"><input type="email" id="email">',
   ).window;
   const result = resolveTarget({ kind: "field", value: "email" }, document);
-  assert.ok(result.status === "found", result.status);
+  assert.ok(result.status === "found" && result.kind === "element", result.status);
   assert.equal(result.element, document.getElementById("email"));
 });
 
@@ -87,7 +186,7 @@ test("属性名をセレクタへ混入させず，特殊文字のidも特定す
   input.id = unusual;
   const result = resolveTarget({ kind: "field", value: unusual }, document);
   assert.equal(result.status, "found");
-  if (result.status === "found") assert.equal(result.element, input);
+  if (result.status === "found" && result.kind === "element") assert.equal(result.element, input);
 });
 
 test("文字列入力はネイティブsetterを使い，input/changeを伝播する", () => {

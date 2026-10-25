@@ -52,13 +52,16 @@ export function setupUrlGenerator(
   let saving = false;
   let savedName = "";
   let baseline = "";
+  let rendering = false;
 
   function snapshot(): string {
     return JSON.stringify([savedName, pageUrl?.value, items.map((item) => item.readEntry())]);
   }
 
   function render(showErrors = true): void {
-    if (!pageUrl || !result || !copy || !error || !copyStatus || !save || !saveStatus) return;
+    if (rendering || !pageUrl || !result || !copy || !error || !copyStatus || !save || !saveStatus)
+      return;
+    rendering = true;
     if (showErrors) interacted = true;
     revision += 1;
     result.textContent = "";
@@ -69,14 +72,20 @@ export function setupUrlGenerator(
     error.hidden = true;
     error.textContent = "";
     const errors = items.map((item, index) => {
-      const message = item.validate(showErrors);
       item.checkTarget(pageUrl.value, currentPage);
+      const message = item.validate(showErrors);
       return message ? `項目${index + 1}：${message}` : "";
     });
 
     try {
       const firstError = errors.find(Boolean);
       if (firstError) throw new Error(firstError);
+      const groups = items
+        .map((item) => item.selectedRadioGroup())
+        .filter((group) => group !== undefined);
+      if (new Set(groups).size !== groups.length) {
+        throw new Error("同じラジオグループを複数の項目で選択できません．");
+      }
       result.textContent = generateAutofillUrl(
         pageUrl.value,
         items.map((item) => item.readEntry()),
@@ -92,6 +101,7 @@ export function setupUrlGenerator(
     }
     if (showErrors && !pageUrl.validity.valid) pageUrl.setAttribute("aria-invalid", "true");
     else pageUrl.removeAttribute("aria-invalid");
+    rendering = false;
   }
 
   function updateItems(): void {
@@ -121,6 +131,7 @@ export function setupUrlGenerator(
         items[Math.min(index, items.length - 1)].target.focus();
       },
       initial,
+      () => render(interacted),
     );
     items.push(item);
     list.append(item.element);

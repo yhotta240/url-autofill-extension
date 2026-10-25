@@ -1,4 +1,4 @@
-import { fillElement } from "./autofill.ts";
+import { fillElement, fillRadioGroup } from "./autofill.ts";
 import type { FillEntry } from "./parser.ts";
 import { resolveTarget } from "./resolver.ts";
 
@@ -82,7 +82,10 @@ export function startFilling(entries: FillEntry[], root: Document): () => void {
       let result: string = resolution.status;
       if (resolution.status === "found") {
         try {
-          result = fillElement(resolution.element, entry.value);
+          result =
+            resolution.kind === "radio-group"
+              ? fillRadioGroup(resolution.elements, entry.value)
+              : fillElement(resolution.element, entry.value);
         } catch {
           result = "error";
         }
