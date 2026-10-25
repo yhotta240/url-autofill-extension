@@ -17,7 +17,7 @@ function items(): HTMLFieldSetElement[] {
   return [...document.querySelectorAll<HTMLFieldSetElement>("[data-generator-item]")];
 }
 function input(id: string, index = 0): HTMLInputElement {
-  if (["generator-method", "generator-target", "generator-value"].includes(id)) {
+  if (["generator-target", "generator-value"].includes(id)) {
     return items()[index].querySelector(
       `[data-${id.slice("generator-".length)}]`,
     ) as HTMLInputElement;
@@ -44,9 +44,7 @@ function error(): HTMLElement {
 }
 function change(id: string, value: string, index = 0): void {
   input(id, index).value = value;
-  input(id, index).dispatchEvent(
-    new Event(id === "generator-method" ? "change" : "input", { bubbles: true }),
-  );
+  input(id, index).dispatchEvent(new Event("input", { bubbles: true }));
 }
 function chooseValue(text: string, index = 0): void {
   const select = items()[index].querySelector<HTMLSelectElement>("[data-value-select]");
@@ -135,7 +133,7 @@ test.each([
     id: "saved",
     name: "保存",
     createdAt: 1,
-    url: `https://example.com/form?q=1#/settings#url-autofill:radio-a=${value}`,
+    url: `https://example.com/form?q=1#/settings#url-autofill:fill(%23radio-a)=${value}`,
   });
   await vi.advanceTimersByTimeAsync(300);
   expect(input("generator-value").value).toBe(value);
@@ -155,7 +153,7 @@ test.each(["", "b", "c"])("グループの保存値を復元し，空値と未�
     id: "saved",
     name: "保存",
     createdAt: 1,
-    url: `https://example.com/form?q=1#/settings#url-autofill:plan=${value}`,
+    url: `https://example.com/form?q=1#/settings#url-autofill:fill(%23plan)=${value}`,
   });
   await vi.advanceTimersByTimeAsync(300);
   expect(radioSelect().value).toBe(String(options.findIndex((option) => option.value === value)));
@@ -173,8 +171,8 @@ test.each([
     if (message.type !== TARGET_CHECK_TYPE)
       return { url: "https://example.com/form?q=1#/settings", candidates: [] };
     return radioResponse(
-      message.target.value.startsWith("direct")
-        ? { mode: "direct", group: "plan", value: message.target.value.endsWith("a") ? "a" : "b" }
+      message.selector.startsWith("direct")
+        ? { mode: "direct", group: "plan", value: message.selector.endsWith("a") ? "a" : "b" }
         : { mode: "group", group: "plan", options: radioOptions },
     );
   });
@@ -197,7 +195,7 @@ test("別フォームのラジオと単体の解除は同じグループとの�
   sendMessage.mockImplementation(async (_tab, message) =>
     radioResponse({
       mode: "direct",
-      group: message.target?.value === "other" ? "other-form" : "plan",
+      group: message.selector === "#other" ? "other-form" : "plan",
       value: "a",
     }),
   );
@@ -205,7 +203,7 @@ test("別フォームのラジオと単体の解除は同じグループとの�
     id: "saved",
     name: "保存",
     createdAt: 1,
-    url: "https://example.com/form?q=1#/settings#url-autofill:clear=&select=a&other=a",
+    url: "https://example.com/form?q=1#/settings#url-autofill:fill(%23clear)=&fill(%23select)=a&fill(%23other)=a",
   });
   await vi.advanceTimersByTimeAsync(300);
   expect(button().disabled).toBe(false);
@@ -299,7 +297,7 @@ test("現在URLとサンプル値で生成し，自動入力の有効状態を�
   expect(query).toHaveBeenCalledWith({ active: true, currentWindow: true });
   expect(input("generator-page-url").value).toBe("https://example.com/form?q=1#/settings");
   expect(generated()).toBe(
-    "https://example.com/form?q=1#/settings#url-autofill:email=test%40example.com",
+    "https://example.com/form?q=1#/settings#url-autofill:fill(%23email)=test%40example.com",
   );
   expect(output().tagName).toBe("CODE");
   expect(output().closest("pre")?.getAttribute("tabindex")).toBe("0");
@@ -329,7 +327,9 @@ test("タブ取得に失敗しても手入力で利用できる", async () => {
   query.mockRejectedValue(new Error("unavailable"));
   await setup();
   change("generator-page-url", "https://manual.example/form");
-  expect(generated()).toBe("https://manual.example/form#url-autofill:email=test%40example.com");
+  expect(generated()).toBe(
+    "https://manual.example/form#url-autofill:fill(%23email)=test%40example.com",
+  );
   expect(document.getElementById("generator-source-status")?.textContent).toBe("");
   expect(button().disabled).toBe(false);
 });
@@ -355,7 +355,6 @@ test("URLの取得が遅れても編集済みの指定欄のエラーを隠さ�
   });
   query.mockReturnValue(pending);
   setupUrlGenerator();
-  change("generator-method", "selector");
   change("generator-target", "[");
   resolveQuery([{ id: 7, url: "https://example.com/" }]);
   await pending;
@@ -364,27 +363,12 @@ test("URLの取得が遅れても編集済みの指定欄のエラーを隠さ�
   expect(button().disabled).toBe(true);
 });
 
-test("指定方法を切り替えても各モードの入力を保持する", async () => {
-  await setup();
-  change("generator-target", "username");
-  change("generator-method", "selector");
-  expect(input("generator-target").value).toBe("#email");
-  expect(items()[0].querySelector("[data-target-label]")?.textContent).toContain("CSSセレクタ");
-  expect(generated()).toContain("fill(%23email)=test%40example.com");
-  change("generator-target", ".contact-email");
-  change("generator-method", "field");
-  expect(input("generator-target").value).toBe("username");
-  expect(generated()).toContain("username=test%40example.com");
-  change("generator-method", "selector");
-  expect(input("generator-target").value).toBe(".contact-email");
-});
-
 test("改行・空値をそのまま生成し，必須項目が無効ならコピーを止める", async () => {
   await setup();
   change("generator-value", "田中\n+ &");
   expect(generated()).toContain("%E7%94%B0%E4%B8%AD%0A%2B%20%26");
   change("generator-value", "");
-  expect(generated().endsWith("email=")).toBe(true);
+  expect(generated().endsWith("fill(%23email)=")).toBe(true);
   change("generator-target", "");
   expect(generated()).toBe("");
   expect(button().disabled).toBe(true);
@@ -400,7 +384,6 @@ test("改行・空値をそのまま生成し，必須項目が無効ならコ�
 
 test("CSSは構文だけを検査し，対象がPopupに存在する必要はない", async () => {
   await setup();
-  change("generator-method", "selector");
   change("generator-target", "[");
   expect(generated()).toBe("");
   expect(error().textContent).toContain("CSSセレクタの構文");
@@ -465,7 +448,7 @@ test("Enterによるsubmitを止め，コピーやページ遷移を実行しな
   expect(writeText).not.toHaveBeenCalled();
 });
 
-test("項目の追加・編集で複数の指定方法と入力値をまとめて生成する", async () => {
+test("項目の追加・編集で複数のセレクタと入力値をまとめて生成する", async () => {
   await setup();
   add();
   expect(items()).toHaveLength(2);
@@ -474,13 +457,12 @@ test("項目の追加・編集で複数の指定方法と入力値をまとめ�
   expect(input("generator-value", 1).value).toBe("");
   expect(button().disabled).toBe(true);
   expect(error().textContent).toContain("項目2");
-  change("generator-method", "selector", 1);
   change("generator-target", "#username", 1);
   change("generator-value", "田中\n+ &", 1);
   const entries = parseAutofillUrl(generated())?.entries;
   expect(entries).toEqual([
-    { target: { kind: "field", value: "email" }, value: "test@example.com" },
-    { target: { kind: "selector", value: "#username" }, value: "田中\n+ &" },
+    { selector: "#email", value: "test@example.com" },
+    { selector: "#username", value: "田中\n+ &" },
   ]);
   expect(button().disabled).toBe(false);
   button().click();
@@ -489,31 +471,13 @@ test("項目の追加・編集で複数の指定方法と入力値をまとめ�
   expect(save).not.toHaveBeenCalled();
 });
 
-test("項目ごとに指定方法の入力を保持し，別項目を変更しない", async () => {
-  await setup();
-  add();
-  change("generator-target", "username", 1);
-  change("generator-value", "name", 1);
-  change("generator-method", "selector", 1);
-  change("generator-target", ".username", 1);
-  change("generator-method", "field", 1);
-  expect(input("generator-target", 1).value).toBe("username");
-  change("generator-method", "selector", 1);
-  expect(input("generator-target", 1).value).toBe(".username");
-  expect(input("generator-value", 1).value).toBe("name");
-  expect(input("generator-method").value).toBe("field");
-  expect(input("generator-target").value).toBe("email");
-  expect(input("generator-value").value).toBe("test@example.com");
-});
-
 test("無効なCSSや重複した指定先があれば全体のコピーを止め，修正すれば再開する", async () => {
   await setup();
   add();
-  change("generator-target", "email", 1);
+  change("generator-target", "#email", 1);
   expect(error().textContent).toContain("項目2：同じ指定先が重複");
   expect(generated()).toBe("");
   expect(button().disabled).toBe(true);
-  change("generator-method", "selector", 1);
   change("generator-target", "[", 1);
   expect(error().textContent).toContain("項目2：CSSセレクタの構文");
   expect(input("generator-target", 1).getAttribute("aria-invalid")).toBe("true");
@@ -537,7 +501,7 @@ test("項目の削除でURLと番号を更新し，残った項目へのフォ�
   expect(items()[0].querySelector("[data-remove]")?.getAttribute("aria-label")).toBe("項目1を削除");
   expect(document.activeElement).toBe(remainingTarget);
   expect(parseAutofillUrl(generated())?.entries).toEqual([
-    { target: { kind: "field", value: "username" }, value: "Tanaka" },
+    { selector: "username", value: "Tanaka" },
   ]);
   add();
   const ids = [...document.querySelectorAll("#generator-items [id]")].map((control) => control.id);
@@ -600,7 +564,6 @@ test("現在ページでの確認結果を表示し，値の編集や確認失�
     url: "https://example.com/form?q=1#/settings",
     status: "missing",
   });
-  change("generator-method", "selector");
   change("generator-target", "#missing");
   await vi.advanceTimersByTimeAsync(300);
   expect(status?.textContent).toBe("現在のページでは見つかりません");
@@ -685,11 +648,11 @@ test.each([
     Promise.resolve({
       url,
       status: "found",
-      ...(message.target.kind === "selector"
+      ...(message.selector === "#radio"
         ? { radio: { mode: "direct", value: "a&b" } }
         : {
             valueInput:
-              message.target.value === "agree"
+              message.selector === "#agree"
                 ? { kind: "checkbox" }
                 : { kind: "select", options: [{ label: "プランA", value: "a", disabled: false }] },
           }),
@@ -697,7 +660,7 @@ test.each([
   );
   const generator = setupUrlGenerator();
   await Promise.resolve();
-  const savedUrl = `${url}#url-autofill:agree=1&plan=future%0Avalue&fill(%23radio)=${encodeURIComponent(radioValue)}`;
+  const savedUrl = `${url}#url-autofill:fill(%23agree)=1&fill(%23plan)=future%0Avalue&fill(%23radio)=${encodeURIComponent(radioValue)}`;
   expect(generator?.edit({ id: "saved", name: "保存済み", url: savedUrl, createdAt: 1 })).toBe(
     true,
   );
@@ -721,11 +684,11 @@ test.each([
   expect((document.getElementById("generator-save") as HTMLButtonElement).disabled).toBe(true);
   chooseValue("プランA", 1);
   expect(button().disabled).toBe(false);
-  expect(generated()).toBe(savedUrl.replace("plan=future%0Avalue", "plan=a"));
+  expect(generated()).toBe(savedUrl.replace("fill(%23plan)=future%0Avalue", "fill(%23plan)=a"));
   expect(save).not.toHaveBeenCalled();
 });
 
-test("フォーカスで選択肢を再取得し，指定方法を変えても値を保持する", async () => {
+test("フォーカスで選択肢を再取得し，入力先を変えても値を保持する", async () => {
   const response = {
     url: "https://example.com/form?q=1#/settings",
     status: "found",
@@ -749,7 +712,6 @@ test("フォーカスで選択肢を再取得し，指定方法を変えても�
   expect([...(select?.options ?? [])].some((option) => option.textContent === "手入力")).toBe(
     false,
   );
-  change("generator-method", "selector");
   change("generator-target", "#plan");
   expect(input("generator-value").hidden).toBe(false);
   await vi.advanceTimersByTimeAsync(300);

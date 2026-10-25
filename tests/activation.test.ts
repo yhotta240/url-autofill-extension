@@ -14,7 +14,11 @@ beforeEach(() => {
   vi.spyOn(console, "info").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
   document.body.innerHTML = '<input name="email">';
-  window.history.replaceState(null, "", "https://example.com/#url-autofill:email=value");
+  window.history.replaceState(
+    null,
+    "",
+    "https://example.com/#url-autofill:fill(input%5Bname%3Demail%5D)=value",
+  );
   runtime.lastError = undefined;
   listeners = new Set();
   vi.stubGlobal("chrome", {
@@ -72,10 +76,10 @@ test("Popupでの無効化時は動的DOM待機を停止し，以後のハッシ
   await vi.advanceTimersByTimeAsync(80);
   change(false);
   document.body.innerHTML = '<input name="email">';
-  window.location.hash = "#url-autofill:email=new";
+  window.location.hash = "#url-autofill:fill(input%5Bname%3Demail%5D)=new";
   await vi.advanceTimersByTimeAsync(200);
   assert.equal(document.querySelector("input")?.value, "");
-  assert.equal(window.location.hash, "#url-autofill:email=new");
+  assert.equal(window.location.hash, "#url-autofill:fill(input%5Bname%3Demail%5D)=new");
   assert.equal(vi.getTimerCount(), 0);
 });
 

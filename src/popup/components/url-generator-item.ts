@@ -1,10 +1,10 @@
-import type { FillEntry, FillTarget } from "../../content/parser.ts";
+import type { FillEntry } from "../../content/parser.ts";
 import type { CurrentPage } from "../current-page.ts";
 import { createTargetCandidates } from "./target-candidates.ts";
 import { createTargetCheck } from "./target-check.ts";
 import { createValueInput } from "./value-input.ts";
 
-/** 項目単位で指定方法と入力内容を保持する． */
+/** 項目単位でCSSセレクタと入力内容を保持する． */
 export function createGeneratorItem(
   template: HTMLTemplateElement,
   id: number,
@@ -16,9 +16,7 @@ export function createGeneratorItem(
   const fragment = template.content.cloneNode(true) as DocumentFragment;
   const element = fragment.querySelector<HTMLFieldSetElement>("fieldset");
   const legend = fragment.querySelector("legend");
-  const method = fragment.querySelector<HTMLSelectElement>("[data-method]");
   const target = fragment.querySelector<HTMLInputElement>("[data-target]");
-  const targetText = fragment.querySelector<HTMLElement>("[data-target-text]");
   const targetStatus = fragment.querySelector<HTMLElement>("[data-target-status]");
   const candidates = fragment.querySelector<HTMLElement>("[data-target-candidates]");
   const value = fragment.querySelector<HTMLTextAreaElement>("[data-value]");
@@ -29,9 +27,7 @@ export function createGeneratorItem(
   if (
     !element ||
     !legend ||
-    !method ||
     !target ||
-    !targetText ||
     !targetStatus ||
     !candidates ||
     !value ||
@@ -44,7 +40,6 @@ export function createGeneratorItem(
   }
 
   for (const [name, control] of [
-    ["method", method],
     ["target", target],
     ["value", value],
   ] as const) {
@@ -73,27 +68,9 @@ export function createGeneratorItem(
     if (before !== validationState()) onCheckChange();
   });
   const targetCandidates = createTargetCandidates(target, candidates);
-  let mode: FillTarget["kind"] = initial?.target.kind ?? "field";
-  const targets = { field: "", selector: initial ? "#email" : "" };
-  if (initial) targets[mode] = initial.target.value;
+  target.value = initial?.selector ?? "";
   value.value = initial?.value ?? "";
-
-  const showMethod = (): void => {
-    method.value = mode;
-    target.value = targets[mode];
-    targetText.textContent = mode === "selector" ? "CSSセレクタ" : "フィールド名";
-    target.placeholder = mode === "selector" ? "#email" : "email";
-  };
-  showMethod();
-
   target.addEventListener("input", () => {
-    targets[mode] = target.value;
-    valueInput.targetChanged();
-    onChange();
-  });
-  method.addEventListener("change", () => {
-    mode = method.value === "selector" ? "selector" : "field";
-    showMethod();
     valueInput.targetChanged();
     onChange();
   });
@@ -108,16 +85,12 @@ export function createGeneratorItem(
       remove.setAttribute("aria-label", `項目${number}を削除`);
     },
     readEntry(): FillEntry {
-      return { target: { kind: mode, value: target.value }, value: value.value };
+      return { selector: target.value, value: value.value };
     },
     selectedRadioGroup: valueInput.selectedGroup,
     checkTarget(pageUrl: string, page: CurrentPage | null | undefined): void {
-      targetCandidates.update(mode, pageUrl, page);
-      targetCheck.update(
-        target.value.trim() ? { kind: mode, value: target.value } : null,
-        pageUrl,
-        page,
-      );
+      targetCandidates.update(pageUrl, page);
+      targetCheck.update(target.value.trim() ? target.value : null, pageUrl, page);
     },
     dispose(): void {
       valueInput.dispose();
@@ -127,8 +100,8 @@ export function createGeneratorItem(
     validate(showErrors: boolean): string {
       let message = "";
       if (!target.value.trim()) {
-        message = "フィールド名またはCSSセレクタを入力してください．";
-      } else if (mode === "selector") {
+        message = "CSSセレクタを入力してください．";
+      } else {
         try {
           element.ownerDocument.createDocumentFragment().querySelector(target.value);
         } catch {

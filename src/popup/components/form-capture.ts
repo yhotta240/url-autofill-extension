@@ -1,4 +1,4 @@
-import type { FillEntry, FillTarget } from "../../content/parser.ts";
+import type { FillEntry } from "../../content/parser.ts";
 import {
   captureError,
   FORM_CAPTURE_TYPE,
@@ -11,7 +11,7 @@ type CaptureState = {
   page: CurrentPage | null | undefined;
   url: string;
   version: number;
-  targets: FillTarget[];
+  selectors: string[];
   busy: boolean;
 };
 
@@ -119,7 +119,7 @@ export function createFormCapture(
           type: FORM_CAPTURE_TYPE,
           action: "capture",
           scope: selected || null,
-          existing: current.targets,
+          existing: current.selectors,
         },
         { frameId: 0 },
       );

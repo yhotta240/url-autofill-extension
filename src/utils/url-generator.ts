@@ -23,16 +23,10 @@ export function generateAutofillUrl(baseUrl: string, entries: readonly FillEntry
 
   const keys = new Set<string>();
   const pairs = entries.map((entry, index) => {
-    if (!entry.target.value.trim()) {
-      throw new Error(`項目${index + 1}：フィールド名またはCSSセレクタを入力してください．`);
+    if (!entry.selector.trim()) {
+      throw new Error(`項目${index + 1}：CSSセレクタを入力してください．`);
     }
-    if (entry.target.kind === "field" && entry.target.value.startsWith("fill(")) {
-      throw new Error(
-        `項目${index + 1}：fill(で始まるフィールド名はCSSセレクタで指定してください．`,
-      );
-    }
-    const key =
-      entry.target.kind === "selector" ? `fill(${entry.target.value})` : entry.target.value;
+    const key = `fill(${entry.selector})`;
     if (keys.has(key)) {
       throw new Error(`項目${index + 1}：同じ指定先が重複しています．指定先を変更してください．`);
     }

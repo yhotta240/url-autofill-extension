@@ -1,4 +1,3 @@
-import type { FillTarget } from "../../content/parser.ts";
 import {
   isTargetCandidatesResponse,
   TARGET_CANDIDATES_TYPE,
@@ -17,7 +16,6 @@ export function createTargetCandidates(input: HTMLInputElement, panel: HTMLEleme
   input.setAttribute("aria-controls", list.id);
   input.setAttribute("aria-expanded", "false");
 
-  let kind: FillTarget["kind"] = "field";
   let pageUrl = "";
   let page: CurrentPage | null | undefined;
   let contextKey = "";
@@ -87,7 +85,7 @@ export function createTargetCandidates(input: HTMLInputElement, panel: HTMLEleme
     try {
       const response: unknown = await chrome.tabs.sendMessage(
         page.tabId,
-        { type: TARGET_CANDIDATES_TYPE, kind } satisfies TargetCandidatesRequest,
+        { type: TARGET_CANDIDATES_TYPE } satisfies TargetCandidatesRequest,
         { frameId: 0 },
       );
       if (request !== revision) return;
@@ -172,19 +170,10 @@ export function createTargetCandidates(input: HTMLInputElement, panel: HTMLEleme
   panel.addEventListener("click", onClick);
 
   return {
-    update(
-      nextKind: FillTarget["kind"],
-      nextUrl: string,
-      nextPage: CurrentPage | null | undefined,
-    ): void {
-      const key = JSON.stringify([
-        nextKind,
-        nextUrl,
-        nextPage === undefined ? "loading" : nextPage,
-      ]);
+    update(nextUrl: string, nextPage: CurrentPage | null | undefined): void {
+      const key = JSON.stringify([nextUrl, nextPage === undefined ? "loading" : nextPage]);
       if (key === contextKey) return;
       contextKey = key;
-      kind = nextKind;
       pageUrl = nextUrl;
       page = nextPage;
       if (open) void load();

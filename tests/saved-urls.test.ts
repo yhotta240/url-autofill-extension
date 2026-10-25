@@ -12,7 +12,7 @@ let data: Record<string, unknown>;
 const get = vi.fn();
 const set = vi.fn();
 const remove = vi.fn();
-const url = "https://example.com/form#url-autofill:email=test%40example.com";
+const url = "https://example.com/form#url-autofill:fill(%23email)=test%40example.com";
 
 beforeEach(() => {
   data = { enabled: false, logs: [] };
@@ -80,12 +80,28 @@ test("保存順で並べ，無関係または不正なデータを無視する",
   expect(await getSavedUrls()).toEqual([newer, older]);
 });
 
+test("旧形式の保存URLは一覧から除外し，保存データ自体は変更しない", async () => {
+  const current = { id: "current", name: "CSS", url, createdAt: 1 };
+  const legacy = {
+    id: "legacy",
+    name: "旧形式",
+    url: "https://example.com/form#url-autofill:email=test%40example.com",
+    createdAt: 2,
+  };
+  data[SAVED_URL_PREFIX + current.id] = current;
+  data[SAVED_URL_PREFIX + legacy.id] = legacy;
+  expect(await getSavedUrls()).toEqual([current]);
+  expect(data[SAVED_URL_PREFIX + legacy.id]).toEqual(legacy);
+  expect(set).not.toHaveBeenCalled();
+  expect(remove).not.toHaveBeenCalled();
+});
+
 test.each([
   "https://example.com/",
-  "javascript:alert(1)#url-autofill:a=b",
+  "javascript:alert(1)#url-autofill:fill(%23a)=b",
   "https://example.com/#url-autofill:",
-  "https://example.com/#url-autofill:a=%xx",
-  `https://example.com/#url-autofill:a=${"x".repeat(MAX_URL_LENGTH)}`,
+  "https://example.com/#url-autofill:fill(%23a)=%xx",
+  `https://example.com/#url-autofill:fill(%23a)=${"x".repeat(MAX_URL_LENGTH)}`,
 ])("不正または上限超過のURLを保存しない: %s", async (invalid) => {
   await expect(saveUrl(invalid, "問い合わせ")).rejects.toThrow();
   expect(set).not.toHaveBeenCalled();
@@ -93,12 +109,12 @@ test.each([
 
 test("日本語・予約文字・改行・空値・CSSとハッシュを読み戻せる", () => {
   const parsed = readSavedUrl(
-    "https://example.com/form?q=1#/route#url-autofill:email=&fill(%23memo)=%E6%97%A5%E6%9C%AC%0A%26%3D",
+    "https://example.com/form?q=1#/route#url-autofill:fill(%23email)=&fill(%23memo)=%E6%97%A5%E6%9C%AC%0A%26%3D",
   );
   expect(parsed.cleanUrl).toBe("https://example.com/form?q=1#/route");
   expect(parsed.entries).toEqual([
-    { target: { kind: "field", value: "email" }, value: "" },
-    { target: { kind: "selector", value: "#memo" }, value: "日本\n&=" },
+    { selector: "#email", value: "" },
+    { selector: "#memo", value: "日本\n&=" },
   ]);
 });
 

@@ -1,6 +1,6 @@
 import type { FormOption } from "../shared/form-capture.ts";
 import { getFillBlockReason } from "./autofill.ts";
-import { type FillEntry, type FillTarget, MAX_FIELDS } from "./parser.ts";
+import { type FillEntry, MAX_FIELDS } from "./parser.ts";
 import { isRadio, resolveTarget } from "./resolver.ts";
 import { radioGroupSelector, selectorFor } from "./target-candidates.ts";
 
@@ -33,7 +33,7 @@ function controlSelector(element: Control, root: Document): string {
     const scope = selectorFor(form, root);
     const relative = selectorFor(element, form);
     const selector = `${scope} ${relative}`;
-    const result = resolveTarget({ kind: "selector", value: selector }, root);
+    const result = resolveTarget(selector, root);
     if (result.status === "found" && result.kind === "element" && result.element === element)
       return selector;
   }
@@ -41,7 +41,7 @@ function controlSelector(element: Control, root: Document): string {
 }
 
 /** 明示的な取り込み操作のときだけ現在値を読み取り，ページは変更しない． */
-export function captureForm(root: Document, scope: string | null, existing: FillTarget[]) {
+export function captureForm(root: Document, scope: string | null, existing: string[]) {
   const view = root.defaultView;
   if (!view) throw new Error("このページでは入力内容を取得できません．");
   let form: HTMLFormElement | null = null;
@@ -59,7 +59,7 @@ export function captureForm(root: Document, scope: string | null, existing: Fill
   }
   const occupied: Element[] = [];
   for (const target of existing) {
-    if (!target.value.trim()) continue;
+    if (!target.trim()) continue;
     const result = resolveTarget(target, root);
     if (result.status === "found")
       occupied.push(...(result.kind === "element" ? [result.element] : result.elements));
@@ -120,7 +120,7 @@ export function captureForm(root: Document, scope: string | null, existing: Fill
       skipped += 1;
       continue;
     }
-    entries.push({ target: { kind: "selector", value: selector }, value });
+    entries.push({ selector, value });
     if (entries.length > MAX_FIELDS) throw new Error(`取り込む項目は${MAX_FIELDS}件までです．`);
     occupied.push(element);
   }

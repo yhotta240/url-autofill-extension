@@ -1,4 +1,3 @@
-import type { FillTarget } from "../../content/parser.ts";
 import {
   isTargetCheckResponse,
   TARGET_CHECK_TYPE,
@@ -27,7 +26,7 @@ export function createTargetCheck(
   let revision = 0;
   let lastKey = "";
   let current:
-    | { target: FillTarget | null; pageUrl: string; page: CurrentPage | null | undefined }
+    | { selector: string | null; pageUrl: string; page: CurrentPage | null | undefined }
     | undefined;
 
   function show(status: keyof typeof MESSAGES | null): void {
@@ -41,13 +40,13 @@ export function createTargetCheck(
     timer = undefined;
   }
 
-  async function check(target: FillTarget, page: CurrentPage, url: string, version: number) {
+  async function check(selector: string, page: CurrentPage, url: string, version: number) {
     let status: keyof typeof MESSAGES;
     let result: TargetCheckResponse | null = null;
     try {
       const response: unknown = await chrome.tabs.sendMessage(
         page.tabId,
-        { type: TARGET_CHECK_TYPE, target } satisfies TargetCheckRequest,
+        { type: TARGET_CHECK_TYPE, selector } satisfies TargetCheckRequest,
         { frameId: 0 },
       );
       if (!isTargetCheckResponse(response)) throw new Error("invalid response");
@@ -62,13 +61,13 @@ export function createTargetCheck(
   }
 
   function update(
-    target: FillTarget | null,
+    selector: string | null,
     pageUrl: string,
     page: CurrentPage | null | undefined,
     refresh = false,
   ): void {
-    current = { target, pageUrl, page };
-    const key = JSON.stringify([target, pageUrl, page === undefined ? "loading" : page]);
+    current = { selector, pageUrl, page };
+    const key = JSON.stringify([selector, pageUrl, page === undefined ? "loading" : page]);
     if (!refresh && key === lastKey) return;
     lastKey = key;
     cancel();
@@ -76,7 +75,7 @@ export function createTargetCheck(
     if (!refresh) onResult(null);
 
     const url = normalizePageUrl(pageUrl);
-    if (!target?.value.trim() || !url || page === undefined) {
+    if (!selector?.trim() || !url || page === undefined) {
       show(null);
     } else if (page === null) {
       show("unavailable");
@@ -87,7 +86,7 @@ export function createTargetCheck(
       const version = revision;
       timer = setTimeout(() => {
         timer = undefined;
-        void check(target, page, url, version);
+        void check(selector, page, url, version);
       }, 300);
     }
   }
@@ -95,7 +94,7 @@ export function createTargetCheck(
   return {
     update,
     refresh(): void {
-      if (current) update(current.target, current.pageUrl, current.page, true);
+      if (current) update(current.selector, current.pageUrl, current.page, true);
     },
     dispose(): void {
       cancel();

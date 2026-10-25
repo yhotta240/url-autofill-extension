@@ -1,5 +1,4 @@
 import { getFillBlockReason } from "./autofill.ts";
-import type { FillTarget } from "./parser.ts";
 import { isRadio, resolveTarget } from "./resolver.ts";
 
 export function selectorFor(element: Element, root: Document | Element): string {
@@ -75,7 +74,7 @@ export function radioGroupSelector(radio: HTMLInputElement, root: Document, pref
   }
   if (preferForm) selectors.push(base);
   for (const selector of selectors) {
-    const result = resolveTarget({ kind: "selector", value: selector }, root);
+    const result = resolveTarget(selector, root);
     if (
       result.status === "found" &&
       result.kind === "radio-group" &&
@@ -87,41 +86,20 @@ export function radioGroupSelector(radio: HTMLInputElement, root: Document, pref
   }
 }
 
-/** 候補が既存の解決処理で元の入力要素を指すことも確認する． */
-export function getTargetCandidates(root: Document, kind: FillTarget["kind"]): string[] {
+/** 候補はCSSセレクタで返し，ラジオは有効なグループにまとめる． */
+export function getTargetCandidates(root: Document): string[] {
   const candidates = new Set<string>();
   const grouped = new Set<Element>();
   for (const element of root.querySelectorAll("input, textarea, select")) {
-    if (getFillBlockReason(element)) continue;
-    if (kind === "selector") {
-      if (grouped.has(element)) continue;
-      const group = isRadio(element) ? radioGroupSelector(element, root) : undefined;
-      if (group) {
-        candidates.add(group.selector);
-        for (const radio of group.elements) grouped.add(radio);
-        continue;
-      }
-      const selector = selectorFor(element, root);
-      if (selector) candidates.add(selector);
+    if (getFillBlockReason(element) || grouped.has(element)) continue;
+    const group = isRadio(element) ? radioGroupSelector(element, root) : undefined;
+    if (group) {
+      candidates.add(group.selector);
+      for (const radio of group.elements) grouped.add(radio);
       continue;
     }
-    for (const value of [element.getAttribute("name"), element.id]) {
-      if (
-        !value?.trim() ||
-        /[\r\n]/.test(value) ||
-        value.startsWith("fill(") ||
-        candidates.has(value)
-      )
-        continue;
-      const result = resolveTarget({ kind: "field", value }, root);
-      if (
-        result.status === "found" &&
-        (result.kind === "element"
-          ? result.element === element
-          : result.elements.some((radio) => radio === element))
-      )
-        candidates.add(value);
-    }
+    const selector = selectorFor(element, root);
+    if (selector) candidates.add(selector);
   }
   return [...candidates];
 }

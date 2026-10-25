@@ -36,7 +36,12 @@ function change(id: string, value: string): void {
   field(id).dispatchEvent(new Event("input", { bubbles: true }));
 }
 function entry(id: string, host = "example.com", createdAt = 1): SavedUrl {
-  return { id, name: id, url: `https://${host}/${id}#url-autofill:email=${id}`, createdAt };
+  return {
+    id,
+    name: id,
+    url: `https://${host}/${id}#url-autofill:fill(%23email)=${id}`,
+    createdAt,
+  };
 }
 function store(...items: SavedUrl[]): void {
   for (const item of items) data[SAVED_URL_PREFIX + item.id] = item;
@@ -181,7 +186,7 @@ test("サイドパネルの自動取得URLはタブとURLの変更に追従し�
   expect(field<HTMLInputElement>("generator-page-url").value).toBe("https://other.example/form");
   expect(value.value).toBe("保持する値");
   expect(field("generator-result").textContent).toBe(
-    `https://other.example/form#url-autofill:email=${encodeURIComponent("保持する値")}`,
+    `https://other.example/form#url-autofill:fill(%23email)=${encodeURIComponent("保持する値")}`,
   );
   query.mockResolvedValue([{ id: 8, url: "https://other.example/next" }]);
   updated?.(8, { url: "https://other.example/next" }, {
@@ -324,7 +329,7 @@ test("編集で複数項目・CSS・改行・空値・ハッシュを復元し�
     id: "edit",
     name: "フォーム入力",
     createdAt: 10,
-    url: "https://example.com/form?q=1#/route#url-autofill:email=&fill(%23memo)=%E6%97%A5%E6%9C%AC%0A%26%3D",
+    url: "https://example.com/form?q=1#/route#url-autofill:fill(%23email)=&fill(%23memo)=%E6%97%A5%E6%9C%AC%0A%26%3D",
   };
   store(saved);
   await setup();
@@ -334,9 +339,8 @@ test("編集で複数項目・CSS・改行・空値・ハッシュを復元し�
   expect(field<HTMLInputElement>("generator-page-url").value).toBe(currentUrl);
   const inputs = document.querySelectorAll<HTMLInputElement>("[data-target]");
   const values = document.querySelectorAll<HTMLTextAreaElement>("[data-value]");
-  expect([...inputs].map((input) => input.value)).toEqual(["email", "#memo"]);
+  expect([...inputs].map((input) => input.value)).toEqual(["#email", "#memo"]);
   expect([...values].map((value) => value.value)).toEqual(["", "日本\n&="]);
-  expect(document.querySelectorAll<HTMLSelectElement>("[data-method]")[1].value).toBe("selector");
   expect(field("generator-save").textContent).toBe("更新");
   prompt.mockReturnValueOnce("更新した名前");
   values[1].value = "変更\n値";

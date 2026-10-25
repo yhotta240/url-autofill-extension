@@ -59,14 +59,12 @@ test("フォームがなくても空文字・改行・チェック状態・selec
     document.body.addEventListener(type, changed);
   expect(getCaptureForms(document)).toEqual([]);
   const result = captureForm(document, null, []);
-  expect(
-    result.entries.map((entry) => [entry.target.kind, entry.target.value, entry.value]),
-  ).toEqual([
-    ["selector", "#empty", ""],
-    ["selector", "#memo", "1行目\n2行目"],
-    ["selector", "#on", "true"],
-    ["selector", "#off", "false"],
-    ["selector", "#choice", "a&b"],
+  expect(result.entries.map((entry) => [entry.selector, entry.value])).toEqual([
+    ["#empty", ""],
+    ["#memo", "1行目\n2行目"],
+    ["#on", "true"],
+    ["#off", "false"],
+    ["#choice", "a&b"],
   ]);
   expect(parseAutofillUrl(generateAutofillUrl(location.href, result.entries))?.entries).toEqual(
     result.entries,
@@ -81,8 +79,8 @@ test("フォーム所有者で絞り，外部の関連要素を含め，他フ�
     '<form id="one"><div><input id="inside" value="one"></div><input id="belongs-two" form="two" value="other"></form><input id="outside" form="one" value="external"><form id="two"><input value="two"></form>';
   const result = captureForm(document, "#one", []);
   expect(result.entries.map((entry) => entry.value)).toEqual(["one", "external"]);
-  expect(result.entries[0].target.value).toBe("#one #inside");
-  expect(document.querySelector(result.entries[1].target.value)?.id).toBe("outside");
+  expect(result.entries[0].selector).toBe("#one #inside");
+  expect(document.querySelector(result.entries[1].selector)?.id).toBe("outside");
   document.querySelector("#one")?.remove();
   expect(() => captureForm(document, "#one", [])).toThrow("フォームが見つかりません");
   expect(() => captureForm(document, "[", [])).toThrow("フォームが見つかりません");
@@ -97,7 +95,7 @@ test("ラジオは選択済みグループを1項目とし，空valueもグル�
   for (const radio of document.querySelectorAll<HTMLInputElement>('input[type="radio"]'))
     radio.checked = false;
   for (const entry of result.entries) {
-    const target = resolveTarget(entry.target, document);
+    const target = resolveTarget(entry.selector, document);
     expect(target.status).toBe("found");
     if (target.status !== "found") throw new Error("入力先が見つかりません");
     expect(
@@ -122,7 +120,7 @@ test("入力対象外や再現できない選択状態は値を取り込まな�
     });
   }
   const result = captureForm(document, null, []);
-  expect(result.entries).toEqual([{ target: { kind: "selector", value: "#safe" }, value: "safe" }]);
+  expect(result.entries).toEqual([{ selector: "#safe", value: "safe" }]);
   expect(result.skipped).toBe(8);
 });
 
@@ -138,30 +136,26 @@ test.each([
   const result = captureForm(document, null, []);
   expect(result.skipped).toBe(1);
   expect(result.entries).toEqual([
-    { target: { kind: "selector", value: "#unselected-no-empty" }, value: "" },
-    { target: { kind: "selector", value: "#selected-empty" }, value: "" },
+    { selector: "#unselected-no-empty", value: "" },
+    { selector: "#selected-empty", value: "" },
   ]);
   expect(selects.map((select) => select.selectedOptions.length)).toEqual([0, 0, 1]);
   for (const entry of result.entries) {
-    const select = document.querySelector(entry.target.value);
+    const select = document.querySelector(entry.selector);
     if (!select) throw new Error("入力先が見つかりません");
     expect(fillElement(select, entry.value)).toBe("filled");
   }
   expect(selects.map((select) => select.selectedOptions.length)).toEqual([0, 0, 1]);
 });
 
-test("name・CSSの違いやラジオの指定範囲にかかわらず，既存の入力先は追加しない", () => {
+test("CSSセレクタの違いやラジオの指定範囲にかかわらず，既存の入力先は追加しない", () => {
   document.body.innerHTML =
     '<input name="email" id="email" value="page"><input type="radio" id="a" name="plan" value="a"><input type="radio" id="b" name="plan" value="b" checked><input type="checkbox" id="new"><input name="" id="blank-name" value="blank">';
-  const result = captureForm(document, null, [
-    { kind: "field", value: "email" },
-    { kind: "selector", value: "#a" },
-    { kind: "field", value: "" },
-  ]);
+  const result = captureForm(document, null, ['input[name="email"]', "#a", ""]);
   expect(result.duplicates).toBe(2);
   expect(result.entries).toEqual([
-    { target: { kind: "selector", value: "#new" }, value: "false" },
-    { target: { kind: "selector", value: "#blank-name" }, value: "blank" },
+    { selector: "#new", value: "false" },
+    { selector: "#blank-name", value: "blank" },
   ]);
 });
 

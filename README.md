@@ -47,11 +47,7 @@ Node.js `^22.12.0 || >=24.0.0` と npm が必要です．
 
 対象ページのURL末尾に `#url-autofill:` と入力項目を指定します．複数の項目は `&` で区切ります．
 
-```text
-https://example.com/form#url-autofill:name=Tanaka&email=test%40example.com
-```
-
-通常は `name` 属性，次に `id` 属性で入力欄を特定します．CSSセレクタで指定する場合は `fill(...)` を使用します．
+入力先はCSSセレクタで指定し，`fill(...)` を使用します．
 
 ```text
 https://example.com/form#url-autofill:fill(%23email)=test%40example.com

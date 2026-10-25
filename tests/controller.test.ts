@@ -64,7 +64,7 @@ test("指定範囲へ遅れて追加されるラジオの選択肢を待ち，�
 test("URLを入力前に整理し，履歴stateを保持して一度だけ入力する", async () => {
   const { window, document, logs } = createPage(
     '<input name="email">',
-    "#/settings#url-autofill:email=private%40example.com",
+    "#/settings#url-autofill:fill(input%5Bname%3Demail%5D)=private%40example.com",
   );
   window.history.replaceState({ route: "settings" }, "");
   const urls: string[] = [];
@@ -85,7 +85,7 @@ test("URLを入力前に整理し，履歴stateを保持して一度だけ入力
 test("遅れて追加される入力欄とselectの選択肢を待ち，入力済み項目は上書きしない", async () => {
   const { window, document } = createPage(
     '<input name="first"><select name="choice"></select>',
-    "#url-autofill:first=initial&late=arrived&choice=b",
+    "#url-autofill:fill(input%5Bname%3Dfirst%5D)=initial&fill(input%5Bname%3Dlate%5D)=arrived&fill(select%5Bname%3Dchoice%5D)=b",
   );
   const stop = start(document);
   await advance();
@@ -104,10 +104,10 @@ test("遅れて追加される入力欄とselectの選択肢を待ち，入力�
 });
 
 test("hashchangeで新しい指定を処理し，古い待機をキャンセルする", async () => {
-  const { window, document } = createPage("", "#url-autofill:old=stale");
+  const { window, document } = createPage("", "#url-autofill:fill(input%5Bname%3Dold%5D)=stale");
   const stop = start(document);
   await advance();
-  window.location.hash = "#/next#url-autofill:new=fresh";
+  window.location.hash = "#/next#url-autofill:fill(input%5Bname%3Dnew%5D)=fresh";
   await advance();
   document.body.innerHTML = '<input name="old"><input name="new">';
   await advance();
@@ -120,7 +120,7 @@ test("hashchangeで新しい指定を処理し，古い待機をキャンセル�
 
 test("通常のハッシュ遷移やpagehideでも待機を終了する", async () => {
   for (const action of ["hash", "pagehide"]) {
-    const { window, document } = createPage("", "#url-autofill:late=stale");
+    const { window, document } = createPage("", "#url-autofill:fill(input%5Bname%3Dlate%5D)=stale");
     const stop = start(document);
     if (action === "hash") window.location.hash = "#/other";
     else window.dispatchEvent(new window.PageTransitionEvent("pagehide"));
@@ -136,7 +136,7 @@ test("不正なURLも整理し，URL整理に失敗した場合は入力しな�
   for (const failHistory of [false, true]) {
     const { window, document } = createPage(
       '<input name="email">',
-      `#url-autofill:email=${failHistory ? "value" : "%FF"}`,
+      `#url-autofill:fill(input%5Bname%3Demail%5D)=${failHistory ? "value" : "%FF"}`,
     );
     if (failHistory)
       vi.spyOn(window.history, "replaceState").mockImplementation(() => {
@@ -152,7 +152,10 @@ test("不正なURLも整理し，URL整理に失敗した場合は入力しな�
 
 test("20件を超える項目を分割して処理する", async () => {
   const html = Array.from({ length: 45 }, (_, i) => `<input name="field${i}">`).join("");
-  const payload = Array.from({ length: 45 }, (_, i) => `field${i}=${i}`).join("&");
+  const payload = Array.from(
+    { length: 45 },
+    (_, i) => `fill(input%5Bname%3Dfield${i}%5D)=${i}`,
+  ).join("&");
   const { document } = createPage(html, `#url-autofill:${payload}`);
   const stop = start(document);
   await advance(16);
@@ -169,7 +172,7 @@ test("20件を超える項目を分割して処理する", async () => {
 });
 
 test("待機を10秒で打ち切り，後から追加された入力欄を変更しない", async () => {
-  const { document, logs } = createPage("", "#url-autofill:late=value");
+  const { document, logs } = createPage("", "#url-autofill:fill(input%5Bname%3Dlate%5D)=value");
   const stop = start(document);
   await advance(DOM_WAIT_MS - 1);
   assert.ok(logs.every((line) => !line.includes("待機終了")));
