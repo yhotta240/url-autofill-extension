@@ -1,9 +1,8 @@
-import type { FillTarget } from "../content/parser.ts";
 import type { Resolution } from "../content/resolver.ts";
 
 export const TARGET_CHECK_TYPE = "url-autofill:check-target";
 
-export type TargetCheckRequest = { type: typeof TARGET_CHECK_TYPE; target: FillTarget };
+export type TargetCheckRequest = { type: typeof TARGET_CHECK_TYPE; selector: string };
 export type ValueInputOption = { label: string; value: string; disabled: boolean };
 export type RadioInfo =
   | { mode: "direct"; group?: string; value: string }
@@ -21,11 +20,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function isTargetCheckRequest(value: unknown): value is TargetCheckRequest {
-  if (!isRecord(value) || value.type !== TARGET_CHECK_TYPE || !isRecord(value.target)) return false;
-  return (
-    (value.target.kind === "field" || value.target.kind === "selector") &&
-    typeof value.target.value === "string"
-  );
+  return isRecord(value) && value.type === TARGET_CHECK_TYPE && typeof value.selector === "string";
 }
 
 export function isTargetCheckResponse(value: unknown): value is TargetCheckResponse {

@@ -226,7 +226,7 @@ export function setupUrlGenerator(
   }
 
   const sample: FillEntry = {
-    target: { kind: "field", value: "email" },
+    selector: "#email",
     value: "test@example.com",
   };
   const capture = createFormCapture(
@@ -235,7 +235,8 @@ export function setupUrlGenerator(
       page: currentPage,
       url: pageUrl.value,
       version: revision,
-      targets: sampleUntouched && !editingId ? [] : items.map((item) => item.readEntry().target),
+      selectors:
+        sampleUntouched && !editingId ? [] : items.map((item) => item.readEntry().selector),
       busy: saving,
     }),
     (entries) => {

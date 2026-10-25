@@ -1,4 +1,4 @@
-import { type FillEntry, type FillTarget, MAX_FIELDS } from "../content/parser.ts";
+import { type FillEntry, MAX_FIELDS } from "../content/parser.ts";
 
 export const FORM_CAPTURE_TYPE = "url-autofill:form-capture";
 export type FormOption = { selector: string; label: string };
@@ -8,7 +8,7 @@ export type FormCaptureRequest =
       type: typeof FORM_CAPTURE_TYPE;
       action: "capture";
       scope: string | null;
-      existing: FillTarget[];
+      existing: string[];
     };
 export type FormsResponse = { url: string; forms: FormOption[] };
 export type CaptureResponse = {
@@ -22,14 +22,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function isTarget(value: unknown): value is FillTarget {
-  return (
-    isRecord(value) &&
-    (value.kind === "field" || value.kind === "selector") &&
-    typeof value.value === "string"
-  );
-}
-
 export function isFormCaptureRequest(value: unknown): value is FormCaptureRequest {
   if (!isRecord(value) || value.type !== FORM_CAPTURE_TYPE) return false;
   if (value.action === "forms") return true;
@@ -38,7 +30,7 @@ export function isFormCaptureRequest(value: unknown): value is FormCaptureReques
     (value.scope === null || typeof value.scope === "string") &&
     Array.isArray(value.existing) &&
     value.existing.length <= MAX_FIELDS &&
-    value.existing.every(isTarget)
+    value.existing.every((selector) => typeof selector === "string")
   );
 }
 
@@ -62,10 +54,7 @@ export function isCaptureResponse(value: unknown): value is CaptureResponse {
     value.entries.length <= MAX_FIELDS &&
     value.entries.every(
       (entry) =>
-        isRecord(entry) &&
-        isTarget(entry.target) &&
-        entry.target.kind === "selector" &&
-        typeof entry.value === "string",
+        isRecord(entry) && typeof entry.selector === "string" && typeof entry.value === "string",
     ) &&
     Number.isInteger(value.duplicates) &&
     Number(value.duplicates) >= 0 &&

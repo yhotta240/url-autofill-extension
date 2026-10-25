@@ -1,5 +1,3 @@
-import type { FillTarget } from "./parser.ts";
-
 export type Resolution =
   | { status: "found"; kind: "element"; element: Element }
   | { status: "found"; kind: "radio-group"; elements: HTMLInputElement[] }
@@ -51,25 +49,10 @@ function resolveCandidates(elements: ArrayLike<Element>): Resolution {
   );
 }
 
-export function resolveTarget(target: FillTarget, root: Document): Resolution {
-  if (target.kind === "selector") {
-    try {
-      return resolveCandidates(root.querySelectorAll(target.value));
-    } catch {
-      return { status: "invalid-selector" };
-    }
+export function resolveTarget(selector: string, root: Document): Resolution {
+  try {
+    return resolveCandidates(root.querySelectorAll(selector));
+  } catch {
+    return { status: "invalid-selector" };
   }
-
-  const named = resolveCandidates(
-    Array.from(root.getElementsByName(target.value)).filter((element) =>
-      element.matches("input, textarea, select"),
-    ),
-  );
-  // name が曖昧な場合は id へフォールバックしない．
-  if (named.status !== "missing") return named;
-
-  // 値をセレクタへ埋め込まず，特殊文字や重複idも正しく扱う．
-  return resolveCandidates(
-    Array.from(root.querySelectorAll("[id]")).filter((item) => item.id === target.value),
-  );
 }

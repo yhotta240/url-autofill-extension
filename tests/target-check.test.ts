@@ -28,17 +28,13 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-test("有効状態を参照せずname・id・CSSを確認し，URLや入力値を変更しない", () => {
+test("有効状態を参照せずCSSセレクタを確認し，URLや入力値を変更しない", () => {
   const url = window.location.href;
   const changed = vi.fn();
   document.addEventListener("input", changed, { once: true });
-  for (const target of [
-    { kind: "field", value: "email" },
-    { kind: "field", value: "only-id" },
-    { kind: "selector", value: 'input[name="email"]' },
-  ]) {
+  for (const target of ['input[name="email"]', "#only-id"]) {
     const reply = vi.fn();
-    listener({ type: TARGET_CHECK_TYPE, target }, {}, reply);
+    listener({ type: TARGET_CHECK_TYPE, selector: target }, {}, reply);
     expect(reply).toHaveBeenCalledExactlyOnceWith({ url, status: "found" });
   }
   expect(document.querySelector("input")?.value).toBe("元の値");
@@ -50,12 +46,12 @@ test("有効状態を参照せずname・id・CSSを確認し，URLや入力値�
 test("未検出・複数一致・不正なCSSを区別する", () => {
   document.body.insertAdjacentHTML("beforeend", '<input name="email">');
   for (const [target, status] of [
-    [{ kind: "field", value: "missing" }, "missing"],
-    [{ kind: "field", value: "email" }, "ambiguous"],
-    [{ kind: "selector", value: "[" }, "invalid-selector"],
+    ['input[name="missing"]', "missing"],
+    ['input[name="email"]', "ambiguous"],
+    ["[", "invalid-selector"],
   ]) {
     const reply = vi.fn();
-    listener({ type: TARGET_CHECK_TYPE, target }, {}, reply);
+    listener({ type: TARGET_CHECK_TYPE, selector: target }, {}, reply);
     expect(reply).toHaveBeenCalledExactlyOnceWith({ url: window.location.href, status });
   }
 });
@@ -66,7 +62,7 @@ test("別のメッセージや不正な指定には応答せず，破棄時に�
     null,
     { type: "other" },
     { type: TARGET_CHECK_TYPE, target: { kind: "other", value: "email" } },
-    { type: TARGET_CHECK_TYPE, target: { kind: "field", value: 1 } },
+    { type: TARGET_CHECK_TYPE, selector: 1 },
   ]) {
     listener(message, {}, reply);
   }
@@ -87,7 +83,7 @@ test("ラジオ情報はラベル・無効状態・フォーム所有者を返�
   }
   const reply = (value: string) => {
     const response = vi.fn();
-    listener({ type: TARGET_CHECK_TYPE, target: { kind: "selector", value } }, {}, response);
+    listener({ type: TARGET_CHECK_TYPE, selector: value }, {}, response);
     return response.mock.calls[0][0];
   };
   const direct = reply("#a").radio;
@@ -119,7 +115,7 @@ test("チェックボックスの情報を返し，チェック状態は読み�
     },
   });
   const reply = vi.fn();
-  listener({ type: TARGET_CHECK_TYPE, target: { kind: "selector", value: "#choice" } }, {}, reply);
+  listener({ type: TARGET_CHECK_TYPE, selector: "#choice" }, {}, reply);
   expect(reply).toHaveBeenCalledExactlyOnceWith({
     url: window.location.href,
     status: "found",
@@ -145,7 +141,7 @@ test("選択肢の表示名・値・無効状態を返し，同じ値は最初�
     });
   }
   const reply = vi.fn();
-  listener({ type: TARGET_CHECK_TYPE, target: { kind: "field", value: "plan" } }, {}, reply);
+  listener({ type: TARGET_CHECK_TYPE, selector: 'select[name="plan"]' }, {}, reply);
   expect(reply).toHaveBeenCalledExactlyOnceWith({
     url: window.location.href,
     status: "found",
@@ -174,7 +170,11 @@ test("未対応・無効な入力欄と複数一致には入力UI情報を返さ
   });
   for (const name of ["text", "disabled", "sensitive", "group"]) {
     const reply = vi.fn();
-    listener({ type: TARGET_CHECK_TYPE, target: { kind: "field", value: name } }, {}, reply);
+    listener(
+      { type: TARGET_CHECK_TYPE, selector: name === "group" ? 'input[name="group"]' : `#${name}` },
+      {},
+      reply,
+    );
     expect(reply.mock.calls[0][0]).toEqual({
       url: window.location.href,
       status: name === "group" ? "invalid-radio-group" : "found",

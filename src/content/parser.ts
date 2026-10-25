@@ -2,8 +2,7 @@ export const URL_MARKER = "#url-autofill:";
 export const MAX_URL_LENGTH = 16_384;
 export const MAX_FIELDS = 100;
 
-export type FillTarget = { kind: "field" | "selector"; value: string };
-export type FillEntry = { target: FillTarget; value: string };
+export type FillEntry = { selector: string; value: string };
 export type AutofillRequest = {
   cleanUrl: string;
   entries: FillEntry[];
@@ -28,26 +27,25 @@ export function parseAutofillUrl(url: string): AutofillRequest | null {
   const entries = new Map<string, FillEntry>();
   for (const pair of pairs) {
     const separator = pair.indexOf("=");
-    if (separator < 1) return invalid("入力項目は key=value 形式で指定してください");
-
     let key: string;
+    try {
+      const rawKey = separator < 0 ? pair : pair.slice(0, separator);
+      key = decodeURIComponent(rawKey.replace(/\+/g, " "));
+    } catch {
+      return invalid("URLエンコードが不正です");
+    }
+    if (!key.startsWith("fill(")) continue;
+    if (separator < 0) return invalid("入力項目は key=value 形式で指定してください");
+    if (!key.endsWith(")") || !key.slice(5, -1).trim()) {
+      return invalid("fill(...) の指定が不正です");
+    }
     let value: string;
     try {
-      key = decodeURIComponent(pair.slice(0, separator).replace(/\+/g, " "));
       value = decodeURIComponent(pair.slice(separator + 1).replace(/\+/g, " "));
     } catch {
       return invalid("URLエンコードが不正です");
     }
-    if (!key) return invalid("入力項目名が空です");
-
-    let target: FillTarget = { kind: "field", value: key };
-    if (key.startsWith("fill(")) {
-      if (!key.endsWith(")") || !key.slice(5, -1).trim()) {
-        return invalid("fill(...) の指定が不正です");
-      }
-      target = { kind: "selector", value: key.slice(5, -1) };
-    }
-    entries.set(key, { target, value });
+    entries.set(key, { selector: key.slice(5, -1), value });
   }
 
   return { cleanUrl, entries: [...entries.values()] };

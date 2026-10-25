@@ -43,7 +43,7 @@ beforeEach(() => {
     tabs: { sendMessage, query: vi.fn().mockResolvedValue([{ id: page.tabId, url }]) },
   });
   candidates = createTargetCandidates(input, panel);
-  candidates.update("field", url, page);
+  candidates.update(url, page);
 });
 
 afterEach(() => {
@@ -67,7 +67,7 @@ test("フォーカス時は入力内容を変えず全候補を取得し，入�
   ]);
   expect(sendMessage).toHaveBeenCalledExactlyOnceWith(
     7,
-    { type: TARGET_CANDIDATES_TYPE, kind: "field" },
+    { type: TARGET_CANDIDATES_TYPE },
     { frameId: 0 },
   );
   type("MAIL");
@@ -139,7 +139,7 @@ test("Escape・フォーカス離脱では手入力を維持し，閉じた後�
   expect(input.value).toBe("custom");
 });
 
-test("指定方法・タブ・文書の変更時は再取得し，古い候補を破棄する", async () => {
+test("タブ・文書の変更時は再取得し，古い候補を破棄する", async () => {
   let oldReply: (value: unknown) => void = () => {};
   sendMessage.mockReturnValueOnce(
     new Promise((resolve) => {
@@ -147,33 +147,32 @@ test("指定方法・タブ・文書の変更時は再取得し，古い候補�
     }),
   );
   input.focus();
-  candidates.update("selector", url, page);
+  candidates.update(url, { ...page, tabId: 9 });
   await Promise.resolve();
   oldReply({ url, candidates: ["old"] });
   await Promise.resolve();
   expect(options().map((option) => option.textContent)).not.toContain("old");
-  expect(sendMessage.mock.calls[1][1].kind).toBe("selector");
-  candidates.update("selector", url, { ...page, documentVersion: 1 });
+  candidates.update(url, { ...page, documentVersion: 1 });
   await Promise.resolve();
   expect(sendMessage).toHaveBeenCalledTimes(3);
-  candidates.update("selector", url, { ...page, tabId: 8 });
+  candidates.update(url, { ...page, tabId: 8 });
   await Promise.resolve();
   expect(sendMessage.mock.lastCall?.[0]).toBe(8);
   input.blur();
-  candidates.update("field", url, page);
+  candidates.update(url, page);
   expect(sendMessage).toHaveBeenCalledTimes(4);
 });
 
 test("現在ページの取得中は待ち，URL不一致や非対応ページでは問い合わせない", async () => {
-  candidates.update("field", url, undefined);
+  candidates.update(url, undefined);
   input.focus();
   expect(panel.textContent).toContain("候補を取得しています");
-  candidates.update("field", url, null);
+  candidates.update(url, null);
   expect(panel.textContent).toContain("このページでは候補を取得できません");
-  candidates.update("field", "https://other.example/", page);
+  candidates.update("https://other.example/", page);
   expect(panel.textContent).toContain("現在のページとURLが異なるため");
   expect(sendMessage).not.toHaveBeenCalled();
-  candidates.update("field", url, page);
+  candidates.update(url, page);
   await Promise.resolve();
   expect(options()).toHaveLength(3);
 });
@@ -216,7 +215,7 @@ test("項目の破棄後は応答を反映せず，再フォーカスでも問�
   expect(sendMessage).toHaveBeenCalledTimes(1);
 });
 
-test("選択したname/idとCSSを既存のURL生成・存在確認へ反映する", async () => {
+test("選択したCSSセレクタをURL生成・存在確認へ反映する", async () => {
   candidates.dispose();
   const parsed = new DOMParser().parseFromString(
     readFileSync("public/popup.html", "utf8"),
@@ -226,7 +225,7 @@ test("選択したname/idとCSSを既存のURL生成・存在確認へ反映す�
   sendMessage.mockImplementation((_tabId, message) =>
     Promise.resolve(
       message.type === TARGET_CANDIDATES_TYPE
-        ? { url, candidates: message.kind === "field" ? ["username"] : ["#username"] }
+        ? { url, candidates: ["#username"] }
         : { url, status: "found" },
     ),
   );
@@ -234,16 +233,6 @@ test("選択したname/idとCSSを既存のURL生成・存在確認へ反映す�
   await vi.advanceTimersByTimeAsync(0);
   input = document.querySelector("[data-target]") as HTMLInputElement;
   panel = document.querySelector("[data-target-candidates]") as HTMLElement;
-  input.focus();
-  await Promise.resolve();
-  options()[0].click();
-  expect(document.getElementById("generator-result")?.textContent).toContain(
-    "username=test%40example.com",
-  );
-  const method = document.querySelector("[data-method]") as HTMLSelectElement;
-  method.value = "selector";
-  method.dispatchEvent(new Event("change", { bubbles: true }));
-  input.blur();
   input.focus();
   await Promise.resolve();
   options()[0].click();

@@ -75,7 +75,7 @@ export function startFilling(entries: FillEntry[], root: Document): () => void {
         return;
       }
       if (!pending.has(entry)) continue;
-      const resolution = resolveTarget(entry.target, root);
+      const resolution = resolveTarget(entry.selector, root);
       if (resolution.status === "missing") continue;
 
       pending.delete(entry);

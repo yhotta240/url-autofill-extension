@@ -21,13 +21,7 @@ const status = () => field("generator-capture-status").textContent;
 const items = () => [...document.querySelectorAll<HTMLFieldSetElement>("[data-generator-item]")];
 function entries(): FillEntry[] {
   return items().map((item) => ({
-    target: {
-      kind:
-        item.querySelector<HTMLSelectElement>("[data-method]")?.value === "selector"
-          ? "selector"
-          : "field",
-      value: item.querySelector<HTMLInputElement>("[data-target]")?.value ?? "",
-    },
+    selector: item.querySelector<HTMLInputElement>("[data-target]")?.value ?? "",
     value: item.querySelector<HTMLTextAreaElement>("[data-value]")?.value ?? "",
   }));
 }
@@ -50,7 +44,7 @@ beforeEach(() => {
   document.body.innerHTML =
     new DOMParser().parseFromString(html, "text/html").getElementById("settings")?.outerHTML ?? "";
   forms = [{ selector: "#form", label: "フォーム1（#form）" }];
-  captured = [{ target: { kind: "selector", value: "#form #email" }, value: "current" }];
+  captured = [{ selector: "#form #email", value: "current" }];
   sendMessage.mockReset().mockImplementation(async (_tab, message) => {
     if (message.type !== FORM_CAPTURE_TYPE) return { url, status: "found" };
     return message.action === "forms"
@@ -101,7 +95,7 @@ test("編集した項目を保持して追加し，フォーム選択と再取�
     expect.objectContaining({
       action: "capture",
       scope: "#form",
-      existing: [{ kind: "field", value: "email" }],
+      existing: ["#email"],
     }),
     { frameId: 0 },
   );
@@ -200,7 +194,7 @@ test("上限を超える追加は全件を拒否し，途中まで追加しな�
   await setup();
   editValue("残す値");
   captured = Array.from({ length: MAX_FIELDS }, (_, index) => ({
-    target: { kind: "selector", value: `#field-${index}` },
+    selector: `#field-${index}`,
     value: "a",
   }));
   button().click();

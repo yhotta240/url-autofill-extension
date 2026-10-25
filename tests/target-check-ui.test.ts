@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { FillTarget } from "../src/content/parser.ts";
 import { createTargetCheck } from "../src/popup/components/target-check.ts";
 import { TARGET_CHECK_TYPE } from "../src/shared/target-check.ts";
 
 const url = "https://example.com/form?q=1";
 const page = { tabId: 7, url };
-const email: FillTarget = { kind: "field", value: "email" };
+const email = 'input[name="email"]';
 const sendMessage = vi.fn();
 const onResult = vi.fn();
 let status: HTMLElement;
@@ -32,17 +31,17 @@ test("入力停止から300ms後に問い合わせ，同じ指定なら再検索
   check.update(email, url, page);
   expect(status.textContent).toBe("確認中…");
   await vi.advanceTimersByTimeAsync(200);
-  check.update({ ...email, value: "username" }, url, page);
+  check.update('input[name="username"]', url, page);
   await vi.advanceTimersByTimeAsync(299);
   expect(sendMessage).not.toHaveBeenCalled();
   await vi.advanceTimersByTimeAsync(1);
   expect(sendMessage).toHaveBeenCalledExactlyOnceWith(
     7,
-    { type: TARGET_CHECK_TYPE, target: { kind: "field", value: "username" } },
+    { type: TARGET_CHECK_TYPE, selector: 'input[name="username"]' },
     { frameId: 0 },
   );
   expect(status.textContent).toBe("見つかりました");
-  check.update({ ...email, value: "username" }, url, page);
+  check.update('input[name="username"]', url, page);
   await vi.advanceTimersByTimeAsync(300);
   expect(sendMessage).toHaveBeenCalledTimes(1);
 });
@@ -69,7 +68,7 @@ test("入力変更後に届いた古い結果で新しい結果を上書きし�
   check.update(email, url, page);
   await vi.advanceTimersByTimeAsync(300);
   sendMessage.mockResolvedValueOnce({ url, status: "missing" });
-  check.update({ kind: "selector", value: "#username" }, url, page);
+  check.update("#username", url, page);
   await vi.advanceTimersByTimeAsync(300);
   reply({ url, status: "found" });
   await Promise.resolve();
@@ -158,7 +157,7 @@ test("項目の削除後は問い合わせや遅れて届く結果を反映し�
   await Promise.resolve();
   expect(status.textContent).toBe("削除済み");
 
-  check.update({ ...email, value: "username" }, url, page);
+  check.update('input[name="username"]', url, page);
   check.dispose();
   await vi.advanceTimersByTimeAsync(300);
   expect(sendMessage).toHaveBeenCalledTimes(1);

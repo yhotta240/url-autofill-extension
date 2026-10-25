@@ -66,12 +66,12 @@ export function listenForTargetChecks(root: Document): () => void {
     if (isTargetCandidatesRequest(message)) {
       sendResponse({
         url: view.location.href,
-        candidates: getTargetCandidates(root, message.kind),
+        candidates: getTargetCandidates(root),
       } satisfies TargetCandidatesResponse);
       return;
     }
     if (!isTargetCheckRequest(message)) return;
-    const result = resolveTarget(message.target, root);
+    const result = resolveTarget(message.selector, root);
     const radio = getRadioInfo(result);
     const valueInput =
       result.status === "found" && result.kind === "element"

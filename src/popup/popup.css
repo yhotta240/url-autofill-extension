@@ -136,12 +136,8 @@ html.sidepanel {
 
 .generator-item-fields {
   display: grid;
-  grid-template-columns: 7.75rem minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.375rem 0.5rem;
-}
-
-.generator-value-field {
-  grid-column: 1 / -1;
 }
 
 #url-generator :is([data-value], [data-value-select], [data-radio-output])[hidden] {
