@@ -58,6 +58,36 @@ test.each([
   expect(status.textContent).toBe(message);
 });
 
+test.each([
+  [{ label: "メールアドレス", type: "email" }, "メールアドレス"],
+  [{ label: "", type: "textarea" }, "なし"],
+  [{ label: '<img src=x onerror="alert(1)">', type: "text" }, '<img src=x onerror="alert(1)">'],
+])("見つかった入力欄のラベルと型を文字列として表示する: %j", async (targetInfo, label) => {
+  sendMessage.mockResolvedValue({ url, status: "found", targetInfo });
+  check.update(email, url, page);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(status.textContent).toBe(`見つかりました（ラベル：${label}／タイプ：${targetInfo.type}）`);
+  expect(status.children).toHaveLength(0);
+  check.update("#missing", url, page);
+  expect(status.textContent).toBe("確認中…");
+  sendMessage.mockResolvedValue({ url, status: "missing" });
+  await vi.advanceTimersByTimeAsync(300);
+  expect(status.textContent).toBe("現在のページでは見つかりません");
+});
+
+test.each([
+  { label: 1, type: "text" },
+  { label: "氏名", type: null },
+  { label: "氏名", type: "" },
+  "text",
+])("ラベル・型の形式が不正な応答を表示しない: %j", async (targetInfo) => {
+  sendMessage.mockResolvedValue({ url, status: "found", targetInfo });
+  check.update(email, url, page);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(status.textContent).toBe("このページでは確認できません");
+  expect(onResult).toHaveBeenLastCalledWith(null);
+});
+
 test("入力変更後に届いた古い結果で新しい結果を上書きしない", async () => {
   let reply: (response: unknown) => void = () => {};
   sendMessage.mockReturnValueOnce(
@@ -70,7 +100,7 @@ test("入力変更後に届いた古い結果で新しい結果を上書きし�
   sendMessage.mockResolvedValueOnce({ url, status: "missing" });
   check.update("#username", url, page);
   await vi.advanceTimersByTimeAsync(300);
-  reply({ url, status: "found" });
+  reply({ url, status: "found", targetInfo: { label: "古いラベル", type: "email" } });
   await Promise.resolve();
   expect(status.textContent).toBe("現在のページでは見つかりません");
 });
@@ -114,7 +144,11 @@ test("別のURLでは問い合わせず，確認中にページが変わった�
   expect(status.textContent).toBe("現在のページとURLが異なるため確認できません");
   expect(onResult).toHaveBeenLastCalledWith(null);
 
-  sendMessage.mockResolvedValue({ url: "https://example.com/next", status: "found" });
+  sendMessage.mockResolvedValue({
+    url: "https://example.com/next",
+    status: "found",
+    targetInfo: { label: "別ページのラベル", type: "text" },
+  });
   check.update(email, url, page);
   await vi.advanceTimersByTimeAsync(300);
   expect(status.textContent).toBe("現在のページとURLが異なるため確認できません");

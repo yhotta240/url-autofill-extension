@@ -8,15 +8,26 @@ export type RadioInfo =
   | { mode: "direct"; group?: string; value: string }
   | { mode: "group"; group: string; options: ValueInputOption[] };
 export type ValueInputInfo = { kind: "select"; options: ValueInputOption[] } | { kind: "checkbox" };
+export type TargetInfo = { label: string; type: string };
 export type TargetCheckResponse = {
   url: string;
   status: Resolution["status"];
+  targetInfo?: TargetInfo;
   radio?: RadioInfo;
   valueInput?: ValueInputInfo;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+export function isTargetInfo(value: unknown): value is TargetInfo {
+  return (
+    isRecord(value) &&
+    typeof value.label === "string" &&
+    typeof value.type === "string" &&
+    value.type.length > 0
+  );
 }
 
 export function isTargetCheckRequest(value: unknown): value is TargetCheckRequest {
@@ -32,6 +43,8 @@ export function isTargetCheckResponse(value: unknown): value is TargetCheckRespo
       value.status === "ambiguous" ||
       value.status === "invalid-selector" ||
       value.status === "invalid-radio-group") &&
+    (value.targetInfo === undefined ||
+      (value.status === "found" && isTargetInfo(value.targetInfo))) &&
     (value.radio === undefined || (value.status === "found" && isRadioInfo(value.radio))) &&
     (value.valueInput === undefined ||
       (value.status === "found" && isValueInputInfo(value.valueInput)))
