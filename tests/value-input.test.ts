@@ -94,10 +94,11 @@ test.each([
 test("候補にない保存値や改行は選択操作まで保持し，入力方法の切替は表示しない", () => {
   value.value = "未登録\nの値";
   editor.setInfo(options);
-  expect(select.selectedOptions[0].textContent).toBe("現在の値：未登録\nの値");
+  expect(select.selectedOptions[0].textContent).toBe("選択してください");
   expect(select.selectedOptions[0].disabled).toBe(true);
   expect(value.hidden).toBe(true);
   expect(value.value).toBe("未登録\nの値");
+  expect(editor.validate()).toBe("選択リストの選択肢を選んでください．");
   editor.setInfo(options);
   expect(value.value).toBe("未登録\nの値");
   expect(changed).not.toHaveBeenCalled();
@@ -109,6 +110,7 @@ test("候補にない保存値や改行は選択操作まで保持し，入力�
     ],
   });
   expect(select.selectedOptions[0].textContent).toBe("追加された値");
+  expect(editor.validate()).toBe("");
   expect(value.value).toBe("未登録\nの値");
   expect(changed).not.toHaveBeenCalled();
   choose("プランA");

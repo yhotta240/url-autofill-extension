@@ -679,12 +679,17 @@ test.each([
   expect(input("generator-value", 1).hidden).toBe(true);
   const unknown =
     items()[1].querySelector<HTMLSelectElement>("[data-value-select]")?.selectedOptions[0];
-  expect(unknown?.textContent).toBe("現在の値：future\nvalue");
+  expect(unknown?.textContent).toBe("選択してください");
   expect(unknown?.disabled).toBe(true);
   expect(input("generator-value", 2).hidden).toBe(radioValue !== "");
   const radio = items()[2].querySelector<HTMLOutputElement>("[data-radio-output]");
   expect(radio?.hidden).toBe(radioValue === "");
-  expect(generated()).toBe(savedUrl);
+  expect(generated()).toBe("");
+  expect(button().disabled).toBe(true);
+  expect((document.getElementById("generator-save") as HTMLButtonElement).disabled).toBe(true);
+  chooseValue("プランA", 1);
+  expect(button().disabled).toBe(false);
+  expect(generated()).toBe(savedUrl.replace("plan=future%0Avalue", "plan=a"));
   expect(save).not.toHaveBeenCalled();
 });
 

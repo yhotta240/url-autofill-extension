@@ -21,10 +21,16 @@ export function createValueInput(
   placeholder.disabled = true;
 
   function validate(): string {
-    if (radio?.mode !== "group") return "";
-    const option = radio.options.find((option) => option.value === value.value);
-    if (!option) return "ラジオの選択肢を選んでください．";
-    return option.disabled ? "無効なラジオは選択できません．" : "";
+    const grouped = radio?.mode === "group";
+    if (!grouped && field?.kind !== "select") return "";
+    const option = choices.find((option) => option.value === value.value);
+    if (!option) {
+      return grouped ? "ラジオの選択肢を選んでください．" : "選択リストの選択肢を選んでください．";
+    }
+    if (option.disabled) {
+      return grouped ? "無効なラジオは選択できません．" : "無効な選択肢は選択できません．";
+    }
+    return "";
   }
 
   function render(): void {
@@ -54,7 +60,8 @@ export function createValueInput(
         );
       }
       placeholder.hidden = !grouped;
-      placeholder.textContent = grouped ? "選択してください" : `現在の値：${value.value}`;
+      placeholder.textContent =
+        grouped || field?.kind === "select" ? "選択してください" : `現在の値：${value.value}`;
       let selectedValue = value.value;
       if (field?.kind === "checkbox") {
         if (selectedValue === "1") selectedValue = "true";
