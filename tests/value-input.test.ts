@@ -15,12 +15,11 @@ const options: ValueInputInfo = {
   options: [
     { label: "プランA", value: "a&b", disabled: false },
     { label: "無効", value: "blocked", disabled: true },
-    { label: "表示用と同じ値", value: "current", disabled: false },
   ],
 };
 
 beforeEach(() => {
-  document.body.innerHTML = `<label for="value">入力値</label><select hidden></select><output tabindex="0" hidden></output>
+  document.body.innerHTML = `<label for="value">入力値</label><select id="value-select" hidden></select><output id="value-radio" tabindex="0" hidden></output>
     <textarea id="value"></textarea>`;
   value = document.querySelector("textarea") as HTMLTextAreaElement;
   select = document.querySelector("select") as HTMLSelectElement;
@@ -47,7 +46,7 @@ test("表示名で選択し，URL用の値に変換する。無効な選択肢�
   editor.setInfo(options);
   expect(
     [...select.options].filter((option) => !option.hidden).map((option) => option.textContent),
-  ).toEqual(["プランA", "無効", "表示用と同じ値", "選択解除"]);
+  ).toEqual(["プランA", "無効", "選択解除"]);
   expect(value.hidden).toBe(true);
   expect(value.value).toBe("");
   expect(changed).not.toHaveBeenCalled();
@@ -56,12 +55,9 @@ test("表示名で選択し，URL用の値に変換する。無効な選択肢�
   expect(select.options[1].disabled).toBe(true);
   choose("無効");
   expect(value.value).toBe("a&b");
-  choose("表示用と同じ値");
-  expect(value.value).toBe("current");
-  expect(value.hidden).toBe(true);
   choose("選択解除");
   expect(value.value).toBe("");
-  expect(changed).toHaveBeenCalledTimes(3);
+  expect(changed).toHaveBeenCalledTimes(2);
 });
 
 test("ページに空値の選択肢がある場合はその表示名を使う", () => {

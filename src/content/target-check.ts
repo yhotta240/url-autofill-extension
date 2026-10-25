@@ -13,10 +13,12 @@ import { resolveTarget } from "./resolver.ts";
 import { getTargetCandidates } from "./target-candidates.ts";
 
 function getValueInputInfo(element: Element): ValueInputInfo | undefined {
-  if (getFillBlockReason(element)) return;
   const view = element.ownerDocument.defaultView;
   if (!view) return;
-  if (element instanceof view.HTMLSelectElement) {
+  const isSelect = element instanceof view.HTMLSelectElement;
+  const isCheckbox = element instanceof view.HTMLInputElement && element.type === "checkbox";
+  if ((!isSelect && !isCheckbox) || getFillBlockReason(element)) return;
+  if (isSelect) {
     const seen = new Set<string>();
     const options = [];
     for (const option of element.options) {
@@ -30,9 +32,7 @@ function getValueInputInfo(element: Element): ValueInputInfo | undefined {
     }
     return { kind: "select", options };
   }
-  if (element instanceof view.HTMLInputElement && element.type === "checkbox") {
-    return { kind: "checkbox" };
-  }
+  return { kind: "checkbox" };
 }
 
 /** 自動入力の有効状態に関係なく，検索結果だけを返す． */

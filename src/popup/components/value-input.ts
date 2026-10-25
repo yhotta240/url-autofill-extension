@@ -9,8 +9,6 @@ export function createValueInput(
   onChange: () => void,
   onFocus: () => void,
 ) {
-  if (!select.id) select.id = `${value.id}-select`;
-  if (!output.id) output.id = `${value.id}-radio`;
   let radio: RadioInfo | undefined;
   let field: ValueInputInfo | undefined;
   let choices: ValueInputOption[] = [];
