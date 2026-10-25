@@ -13,6 +13,7 @@ import { captureForm, getCaptureForms } from "./form-capture.ts";
 import { getRadioInfo } from "./radio.ts";
 import { resolveTarget } from "./resolver.ts";
 import { getTargetCandidates } from "./target-candidates.ts";
+import { getTargetInfo } from "./target-info.ts";
 
 function getValueInputInfo(element: Element): ValueInputInfo | undefined {
   const view = element.ownerDocument.defaultView;
@@ -64,14 +65,19 @@ export function listenForTargetChecks(root: Document): () => void {
       return;
     }
     if (isTargetCandidatesRequest(message)) {
+      const candidates = getTargetCandidates(root).flatMap((selector) => {
+        const targetInfo = getTargetInfo(resolveTarget(selector, root));
+        return targetInfo ? [{ selector, ...targetInfo }] : [];
+      });
       sendResponse({
         url: view.location.href,
-        candidates: getTargetCandidates(root),
+        candidates,
       } satisfies TargetCandidatesResponse);
       return;
     }
     if (!isTargetCheckRequest(message)) return;
     const result = resolveTarget(message.selector, root);
+    const targetInfo = getTargetInfo(result);
     const radio = getRadioInfo(result);
     const valueInput =
       result.status === "found" && result.kind === "element"
@@ -80,6 +86,7 @@ export function listenForTargetChecks(root: Document): () => void {
     sendResponse({
       url: view.location.href,
       status: result.status,
+      ...(targetInfo ? { targetInfo } : {}),
       ...(radio ? { radio } : {}),
       ...(valueInput ? { valueInput } : {}),
     } satisfies TargetCheckResponse);

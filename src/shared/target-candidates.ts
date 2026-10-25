@@ -1,9 +1,15 @@
+import { isTargetInfo, type TargetInfo } from "./target-check.ts";
+
 export const TARGET_CANDIDATES_TYPE = "url-autofill:target-candidates";
 
 export type TargetCandidatesRequest = {
   type: typeof TARGET_CANDIDATES_TYPE;
 };
-export type TargetCandidatesResponse = { url: string; candidates: string[] };
+export type TargetCandidate = TargetInfo & { selector: string };
+export type TargetCandidatesResponse = {
+  url: string;
+  candidates: (TargetCandidate | string)[];
+};
 
 export function isTargetCandidatesRequest(value: unknown): value is TargetCandidatesRequest {
   if (typeof value !== "object" || value === null) return false;
@@ -17,6 +23,12 @@ export function isTargetCandidatesResponse(value: unknown): value is TargetCandi
   return (
     typeof response.url === "string" &&
     Array.isArray(response.candidates) &&
-    response.candidates.every((candidate) => typeof candidate === "string")
+    response.candidates.every(
+      (candidate) =>
+        typeof candidate === "string" ||
+        (isTargetInfo(candidate) &&
+          "selector" in candidate &&
+          typeof candidate.selector === "string"),
+    )
   );
 }

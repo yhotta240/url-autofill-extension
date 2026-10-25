@@ -36,9 +36,14 @@ beforeEach(() => {
     '<input id="target" value="email"><div data-panel hidden><ul data-candidate-list role="listbox"></ul><p data-candidate-status role="status"></p></div>';
   input = document.querySelector("input") as HTMLInputElement;
   panel = document.querySelector("[data-panel]") as HTMLElement;
-  sendMessage
-    .mockReset()
-    .mockResolvedValue({ url, candidates: ["email", "EmailAddress", "username"] });
+  sendMessage.mockReset().mockResolvedValue({
+    url,
+    candidates: [
+      { selector: "email", label: "メールアドレス", type: "email" },
+      { selector: "EmailAddress", label: "", type: "text" },
+      { selector: "username", label: "ユーザー名", type: "text" },
+    ],
+  });
   vi.stubGlobal("chrome", {
     tabs: { sendMessage, query: vi.fn().mockResolvedValue([{ id: page.tabId, url }]) },
   });
@@ -60,7 +65,7 @@ test("フォーカス時は入力内容を変えず全候補を取得し，入�
   expect(panel.textContent).toContain("候補を取得しています");
   await Promise.resolve();
   expect(input.value).toBe("email");
-  expect(options().map((option) => option.textContent)).toEqual([
+  expect(options().map((option) => option.firstElementChild?.textContent)).toEqual([
     "email",
     "EmailAddress",
     "username",
@@ -71,7 +76,10 @@ test("フォーカス時は入力内容を変えず全候補を取得し，入�
     { frameId: 0 },
   );
   type("MAIL");
-  expect(options().map((option) => option.textContent)).toEqual(["email", "EmailAddress"]);
+  expect(options().map((option) => option.firstElementChild?.textContent)).toEqual([
+    "email",
+    "EmailAddress",
+  ]);
   type("unknown");
   expect(panel.textContent).toContain("一致する候補がありません");
   expect(sendMessage).toHaveBeenCalledTimes(1);
@@ -80,6 +88,58 @@ test("フォーカス時は入力内容を変えず全候補を取得し，入�
   await Promise.resolve();
   expect(options()).toHaveLength(3);
   expect(sendMessage).toHaveBeenCalledTimes(2);
+});
+
+test("候補行の右端にラベル名 / タイプを薄く表示し，補足をクリックしてもセレクタだけを選択する", async () => {
+  input.focus();
+  await Promise.resolve();
+  expect(options().map((option) => option.lastElementChild?.textContent)).toEqual([
+    "メールアドレス / email",
+    "- / text",
+    "ユーザー名 / text",
+  ]);
+  for (const option of options()) {
+    expect(option.lastElementChild?.classList.contains("text-body-secondary")).toBe(true);
+  }
+  (options()[2].lastElementChild as HTMLElement).click();
+  expect(input.value).toBe("username");
+  expect(panel.hidden).toBe(true);
+});
+
+test("候補のラベルやセレクタをHTMLとして解釈しない", async () => {
+  sendMessage.mockResolvedValue({
+    url,
+    candidates: [
+      { selector: 'input[name="<name>"]', label: '<img src=x onerror="alert(1)">', type: "text" },
+    ],
+  });
+  input.focus();
+  await Promise.resolve();
+  expect(options()[0].firstElementChild?.textContent).toBe('input[name="<name>"]');
+  expect(options()[0].lastElementChild?.textContent).toBe('<img src=x onerror="alert(1)"> / text');
+  expect(panel.querySelector("img")).toBeNull();
+});
+
+test("以前の文字列だけの候補にも対応し，未取得の情報はハイフンで表示する", async () => {
+  sendMessage.mockResolvedValue({ url, candidates: ["#legacy"] });
+  input.focus();
+  await Promise.resolve();
+  expect(options()[0].textContent).toBe("#legacy - / -");
+  options()[0].click();
+  expect(input.value).toBe("#legacy");
+});
+
+test.each([
+  { selector: "#field", label: 1, type: "text" },
+  { selector: "#field", label: "氏名", type: "" },
+  { selector: "#field", label: "氏名", type: null },
+  { selector: 1, label: "氏名", type: "text" },
+])("不正なラベル・型・セレクタを持つ候補を表示しない: %j", async (candidate) => {
+  sendMessage.mockResolvedValue({ url, candidates: [candidate] });
+  input.focus();
+  await Promise.resolve();
+  expect(options()).toHaveLength(0);
+  expect(panel.textContent).toContain("このページでは候補を取得できません");
 });
 
 test("マウス選択で入力イベントを発火し，フォーカスを保ったまま候補を閉じる", async () => {
@@ -151,7 +211,7 @@ test("タブ・文書の変更時は再取得し，古い候補を破棄する",
   await Promise.resolve();
   oldReply({ url, candidates: ["old"] });
   await Promise.resolve();
-  expect(options().map((option) => option.textContent)).not.toContain("old");
+  expect(options().map((option) => option.firstElementChild?.textContent)).not.toContain("old");
   candidates.update(url, { ...page, documentVersion: 1 });
   await Promise.resolve();
   expect(sendMessage).toHaveBeenCalledTimes(3);
@@ -225,7 +285,7 @@ test("選択したCSSセレクタをURL生成・存在確認へ反映する", as
   sendMessage.mockImplementation((_tabId, message) =>
     Promise.resolve(
       message.type === TARGET_CANDIDATES_TYPE
-        ? { url, candidates: ["#username"] }
+        ? { url, candidates: [{ selector: "#username", label: "ユーザー名", type: "text" }] }
         : { url, status: "found" },
     ),
   );

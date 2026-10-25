@@ -184,8 +184,21 @@ test("日本語・予約文字を含むname/idをエスケープし，入力値�
   document.removeEventListener("input", changed);
 });
 
-test("候補取得は有効状態を参照せず，CSSセレクタだけを返す", () => {
-  document.body.innerHTML = '<input id="email" name="email" value="secret">';
+test("候補取得は有効状態や入力値を参照せず，CSSセレクタ・ラベル・型を返す", () => {
+  document.body.innerHTML =
+    '<label for="email">メールアドレス</label><input id="email" name="email" type="email" value="secret"><fieldset><legend>プラン</legend><input type="radio" name="plan" value="a"><input type="radio" name="plan" value="b"></fieldset><textarea id="notes"></textarea>';
+  Object.defineProperty(document.getElementById("email"), "value", {
+    get() {
+      throw new Error("現在の入力内容は取得しない");
+    },
+  });
+  for (const radio of document.querySelectorAll('input[type="radio"]')) {
+    Object.defineProperty(radio, "checked", {
+      get() {
+        throw new Error("現在の選択状態は取得しない");
+      },
+    });
+  }
   let listener: Parameters<typeof chrome.runtime.onMessage.addListener>[0] = () => {};
   vi.stubGlobal("chrome", {
     runtime: {
@@ -202,7 +215,11 @@ test("候補取得は有効状態を参照せず，CSSセレクタだけを返�
   listener({ type: TARGET_CANDIDATES_TYPE }, {}, reply);
   expect(reply).toHaveBeenCalledExactlyOnceWith({
     url: window.location.href,
-    candidates: ["#email"],
+    candidates: [
+      { selector: "#email", label: "メールアドレス", type: "email" },
+      { selector: "input[type=radio][name=plan]", label: "プラン", type: "radio-group" },
+      { selector: "#notes", label: "", type: "textarea" },
+    ],
   });
   reply.mockClear();
   for (const request of [null, { type: "other" }]) {

@@ -35,7 +35,11 @@ test("有効状態を参照せずCSSセレクタを確認し，URLや入力値�
   for (const target of ['input[name="email"]', "#only-id"]) {
     const reply = vi.fn();
     listener({ type: TARGET_CHECK_TYPE, selector: target }, {}, reply);
-    expect(reply).toHaveBeenCalledExactlyOnceWith({ url, status: "found" });
+    expect(reply).toHaveBeenCalledExactlyOnceWith({
+      url,
+      status: "found",
+      targetInfo: { label: "", type: "text" },
+    });
   }
   expect(document.querySelector("input")?.value).toBe("元の値");
   expect(window.location.href).toBe(url);
@@ -119,6 +123,7 @@ test("チェックボックスの情報を返し，チェック状態は読み�
   expect(reply).toHaveBeenCalledExactlyOnceWith({
     url: window.location.href,
     status: "found",
+    targetInfo: { label: "", type: "checkbox" },
     valueInput: { kind: "checkbox" },
   });
 });
@@ -145,6 +150,7 @@ test("選択肢の表示名・値・無効状態を返し，同じ値は最初�
   expect(reply).toHaveBeenCalledExactlyOnceWith({
     url: window.location.href,
     status: "found",
+    targetInfo: { label: "", type: "select-multiple" },
     valueInput: {
       kind: "select",
       options: [
@@ -178,6 +184,97 @@ test("未対応・無効な入力欄と複数一致には入力UI情報を返さ
     expect(reply.mock.calls[0][0]).toEqual({
       url: window.location.href,
       status: name === "group" ? "invalid-radio-group" : "found",
+      ...(name === "group"
+        ? {}
+        : {
+            targetInfo: {
+              label: "",
+              type: name === "disabled" ? "select-one" : name === "sensitive" ? "checkbox" : "text",
+            },
+          }),
     });
   }
+});
+
+test("提示された兄弟label構造のラベルと型の取得結果を確認する", () => {
+  document.body.innerHTML =
+    '<div><label class="block text-xs font-medium text-secondary-foreground/70 mb-1">タイトル<span class="text-red-500 ml-0.5">*</span></label><input class="w-full rounded-md border border-secondary-foreground/40 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" maxlength="80" required="" value=""><p class="mt-1 text-xs text-secondary-foreground/70">80文字以内で概要を記述してください．</p></div>';
+  const field = document.querySelector("input");
+  expect(field?.labels).toHaveLength(0);
+  const reply = vi.fn();
+  listener({ type: TARGET_CHECK_TYPE, selector: 'input[maxlength="80"]' }, {}, reply);
+  expect(reply).toHaveBeenCalledExactlyOnceWith({
+    url: window.location.href,
+    status: "found",
+    targetInfo: { label: "", type: "text" },
+  });
+});
+
+test.each([
+  {
+    html: '<label for="field"> メール\n アドレス <span aria-hidden="true">*</span></label><input id="field" type="email">',
+    label: "メール アドレス",
+    type: "email",
+  },
+  {
+    html: '<label>説明<textarea id="field">元の入力内容</textarea></label>',
+    label: "説明",
+    type: "textarea",
+  },
+  {
+    html: '<label>プラン<select id="field"><option>プランA</option></select></label>',
+    label: "プラン",
+    type: "select-one",
+  },
+  {
+    html: '<label for="field">外側</label><input id="field" aria-label="検索キーワード" type="search">',
+    label: "検索キーワード",
+    type: "search",
+  },
+  {
+    html: '<span id="first"> 希望 </span><span id="second" hidden>日付</span><input id="field" type="date" aria-labelledby="first missing second" aria-label="別名">',
+    label: "希望 日付",
+    type: "date",
+  },
+  {
+    html: '<label for="field">氏名</label><label for="field">必須</label><input id="field" aria-labelledby="missing">',
+    label: "氏名 必須",
+    type: "text",
+  },
+  {
+    html: '<input id="field" type="unknown" placeholder="ラベルの代わりにはしない">',
+    label: "",
+    type: "text",
+  },
+  { html: '<button id="field">送信</button>', label: "送信", type: "submit" },
+  {
+    html: '<label><input id="field" type="radio" name="plan" value="a">プランA</label>',
+    label: "プランA",
+    type: "radio",
+  },
+])("ラベルとDOMで認識した型を返す: $type / $label", ({ html, label, type }) => {
+  document.body.innerHTML = html;
+  const field = document.getElementById("field");
+  if (type !== "radio") {
+    Object.defineProperty(field, "value", {
+      get() {
+        throw new Error("ラベル確認では入力値を読まない");
+      },
+    });
+  }
+  const before = document.body.innerHTML;
+  const reply = vi.fn();
+  listener({ type: TARGET_CHECK_TYPE, selector: "#field" }, {}, reply);
+  expect(reply.mock.calls[0][0].targetInfo).toEqual({ label, type });
+  expect(document.body.innerHTML).toBe(before);
+});
+
+test.each([
+  '<fieldset id="group"><legend>契約プラン</legend><label><input type="radio" name="plan" value="a">A</label><label><input type="radio" name="plan" value="b">B</label></fieldset>',
+  '<div id="group" role="radiogroup" aria-label="契約プラン"><label><input type="radio" name="plan" value="a">A</label><label><input type="radio" name="plan" value="b">B</label></div>',
+])("ラジオグループの名前と型を返し，個別の選択肢のラベルとは区別する", (html) => {
+  document.body.innerHTML = html;
+  const reply = vi.fn();
+  listener({ type: TARGET_CHECK_TYPE, selector: "#group" }, {}, reply);
+  expect(reply.mock.calls[0][0].targetInfo).toEqual({ label: "契約プラン", type: "radio-group" });
 });

@@ -1,6 +1,7 @@
 import {
   isTargetCandidatesResponse,
   TARGET_CANDIDATES_TYPE,
+  type TargetCandidate,
   type TargetCandidatesRequest,
 } from "../../shared/target-candidates.ts";
 import { type CurrentPage, normalizePageUrl } from "../current-page.ts";
@@ -21,8 +22,8 @@ export function createTargetCandidates(input: HTMLInputElement, panel: HTMLEleme
   let contextKey = "";
   let revision = 0;
   let open = false;
-  let candidates: string[] = [];
-  let visible: string[] = [];
+  let candidates: TargetCandidate[] = [];
+  let visible: TargetCandidate[] = [];
   let filter = "";
   let active = -1;
   let message = "";
@@ -40,17 +41,25 @@ export function createTargetCandidates(input: HTMLInputElement, panel: HTMLEleme
 
   function render(): void {
     if (!list || !status) return;
-    visible = candidates.filter((value) => value.toLowerCase().includes(filter.toLowerCase()));
+    visible = candidates.filter((value) =>
+      value.selector.toLowerCase().includes(filter.toLowerCase()),
+    );
     active = -1;
     input.removeAttribute("aria-activedescendant");
     list.replaceChildren(
       ...visible.map((value, index) => {
         const option = input.ownerDocument.createElement("li");
+        option.className = "clearfix";
         option.id = `${list.id}-${index}`;
         option.setAttribute("role", "option");
         option.setAttribute("aria-selected", "false");
         option.dataset.index = String(index);
-        option.textContent = value;
+        const selector = input.ownerDocument.createElement("span");
+        selector.textContent = value.selector;
+        const info = input.ownerDocument.createElement("span");
+        info.className = "small text-body-secondary float-end";
+        info.textContent = `${value.label || "-"} / ${value.type || "-"}`;
+        option.append(selector, " ", info);
         return option;
       }),
     );
@@ -93,7 +102,9 @@ export function createTargetCandidates(input: HTMLInputElement, panel: HTMLEleme
       if (normalizePageUrl(response.url) !== url) {
         message = "現在のページとURLが異なるため候補を取得できません";
       } else {
-        candidates = response.candidates;
+        candidates = response.candidates.map((value) =>
+          typeof value === "string" ? { selector: value, label: "", type: "" } : value,
+        );
         message = "";
       }
     } catch {
@@ -117,7 +128,7 @@ export function createTargetCandidates(input: HTMLInputElement, panel: HTMLEleme
     const value = visible[index];
     if (value === undefined) return;
     close();
-    input.value = value;
+    input.value = value.selector;
     input.dispatchEvent(new Event("input", { bubbles: true }));
   }
 

@@ -57,6 +57,9 @@ export function createTargetCheck(
     }
     if (version !== revision) return;
     show(status);
+    if (result?.targetInfo) {
+      element.textContent += `（ラベル：${result.targetInfo.label || "なし"}／タイプ：${result.targetInfo.type}）`;
+    }
     onResult(result);
   }
 
