@@ -10,6 +10,13 @@ export type FillResult =
 
 const TEXT_INPUT_TYPES = new Set(["text", "email", "number", "search", "date"]);
 
+function hasSensitiveAutocomplete(element: Element): boolean {
+  const tokens = (element.getAttribute("autocomplete") ?? "").toLowerCase().split(/\s+/);
+  return tokens.some(
+    (token) => token.includes("password") || token === "one-time-code" || token.startsWith("cc-"),
+  );
+}
+
 /** 入力値を読まずに，自動入力の対象にできるか判定する． */
 export function getFillBlockReason(
   element: Element,
@@ -26,19 +33,16 @@ export function getFillBlockReason(
   let host: Element = element;
   if (isEditable) host = getEditingHost(element);
   for (let field: Element | null = element; field; field = field.parentElement) {
-    const autocomplete = (field.getAttribute("autocomplete") ?? "").toLowerCase().split(/\s+/);
-    if (
-      autocomplete.some(
-        (token) =>
-          token.includes("password") || token === "one-time-code" || token.startsWith("cc-"),
-      )
-    )
-      return "unsupported";
+    if (hasSensitiveAutocomplete(field)) return "unsupported";
     if (field === host) break;
   }
   if (element.matches(":disabled")) return "disabled";
   if (isEditable && element.closest('[aria-disabled="true"], [inert]')) return "disabled";
   if (isEditable && element.closest('[aria-readonly="true"]')) return "readonly";
+  if (isEditable) {
+    const protectedReason = protectedDescendantReason(element);
+    if (protectedReason) return protectedReason;
+  }
   if ((isInput || isTextarea) && element.readOnly) return "readonly";
   if (
     isInput &&
@@ -46,6 +50,33 @@ export function getFillBlockReason(
     !["checkbox", "radio"].includes(element.type)
   ) {
     return "unsupported";
+  }
+  return null;
+}
+
+/** 親の内容取得や置換で，保護された子を巻き込まない． */
+function protectedDescendantReason(element: HTMLElement): ReturnType<typeof getFillBlockReason> {
+  const descendants = element.querySelectorAll(
+    "input, textarea, select, [autocomplete], [contenteditable], [aria-readonly], [aria-disabled], [inert]",
+  );
+  for (const descendant of descendants) {
+    if (hasSensitiveAutocomplete(descendant)) return "unsupported";
+    if (descendant.matches("input, textarea, select")) {
+      const reason = getFillBlockReason(descendant);
+      if (reason) return reason;
+    }
+    if (
+      descendant.getAttribute("aria-disabled")?.toLowerCase() === "true" ||
+      descendant.hasAttribute("inert")
+    ) {
+      return "disabled";
+    }
+    if (
+      descendant.getAttribute("contenteditable")?.toLowerCase() === "false" ||
+      descendant.getAttribute("aria-readonly")?.toLowerCase() === "true"
+    ) {
+      return "readonly";
+    }
   }
   return null;
 }

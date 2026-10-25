@@ -107,6 +107,74 @@ test.each([
   expect(readTargetValue({ status: "found", kind: "element", element })).toBeUndefined();
 });
 
+test("機密指定の子を含む親編集欄を読み書き・候補・取り込みから除外する", () => {
+  document.body.innerHTML =
+    '<div id="editor" contenteditable>本文<span autocomplete="one-time-code">123456</span></div>';
+  const element = editor();
+  const before = element.innerHTML;
+  const read = vi.fn(() => "本文123456");
+  Object.defineProperty(element, "innerText", { get: read });
+  expect(readTargetValue(resolveTarget("#editor", document))).toBeUndefined();
+  expect(fillElement(element, "変更")).toBe("unsupported");
+  expect(getTargetCandidates(document)).toEqual([]);
+  expect(captureForm(document, null, []).entries).toEqual([]);
+  expect(read).not.toHaveBeenCalled();
+  expect(element.innerHTML).toBe(before);
+});
+
+test.each([
+  ['<span contenteditable="false">固定</span>', "readonly"],
+  ['<span contenteditable="FALSE">固定</span>', "readonly"],
+  ['<span aria-readonly="true">固定</span>', "readonly"],
+  ['<span aria-readonly="TRUE">固定</span>', "readonly"],
+  ['<span aria-disabled="true">固定</span>', "disabled"],
+  ["<span inert>固定</span>", "disabled"],
+  ['<span autocomplete="section-check CC-NUMBER">秘密</span>', "unsupported"],
+  ['<input type="password" value="secret">', "unsupported"],
+  ['<input readonly value="固定">', "readonly"],
+  ["<select disabled><option>固定</option></select>", "disabled"],
+])("保護された子を含む親を拒否し，子のDOMと入力値を保持する: %s", (child, reason) => {
+  document.body.innerHTML = `<div id="editor" contenteditable>本文<div>${child}</div></div>`;
+  const element = editor();
+  const protectedNode = element.firstElementChild;
+  const before = element.innerHTML;
+  const read = vi.fn(() => "本文と保護された内容");
+  const changed = vi.fn();
+  Object.defineProperty(element, "innerText", { get: read });
+  element.addEventListener("input", changed);
+  element.addEventListener("change", changed);
+  expect(getFillBlockReason(element)).toBe(reason);
+  expect(fillElement(element, "変更")).toBe(reason);
+  expect(readTargetValue(resolveTarget("#editor", document))).toBeUndefined();
+  expect(getTargetCandidates(document)).not.toContain("#editor");
+  expect(captureForm(document, null, []).entries).toEqual([]);
+  expect(element.innerHTML).toBe(before);
+  expect(element.firstElementChild).toBe(protectedNode);
+  expect(protectedNode?.isConnected).toBe(true);
+  expect(read).not.toHaveBeenCalled();
+  expect(changed).not.toHaveBeenCalled();
+});
+
+test("保護された兄弟を巻き込まない子は，明示指定で読み書きできる", () => {
+  document.body.innerHTML =
+    '<div contenteditable><span id="editor">編集対象</span><span contenteditable="false" id="protected">固定</span></div>';
+  renderedText(editor(), "編集対象");
+  expect(readTargetValue(resolveTarget("#editor", document))).toBe("編集対象");
+  expect(fillElement(editor(), "更新")).toBe("filled");
+  expect(editor("protected").textContent).toBe("固定");
+});
+
+test("通常の入れ子編集領域は候補と取り込みから除外しない", () => {
+  document.body.innerHTML =
+    '<div id="editor" contenteditable><span>本文</span><div contenteditable="plaintext-only">入れ子</div></div>';
+  renderedText(editor(), "本文\n入れ子");
+  expect(getTargetCandidates(document)).toEqual(["#editor"]);
+  expect(captureForm(document, null, []).entries).toEqual([
+    { selector: "#editor", value: "本文\n入れ子" },
+  ]);
+  expect(fillElement(editor(), "更新")).toBe("filled");
+});
+
 test("編集ホストの機密指定を継承する子からも値を読み書きしない", () => {
   document.body.innerHTML =
     '<div contenteditable autocomplete="cc-number"><span id="editor">保持</span></div>';
@@ -135,7 +203,7 @@ test("編集可能なbuttonはsubmit型ではなく編集欄として扱う", ()
 test("入れ子は重複候補にせず，継承した子への入力イベントは編集ホストから送る", () => {
   document.body.innerHTML =
     '<div id="editor" contenteditable><span id="child">子</span><div id="nested" contenteditable>入れ子</div><div contenteditable="false"><span id="blocked">固定</span><div id="separate" contenteditable="plaintext-only">別領域</div></div></div>';
-  expect(getTargetCandidates(document)).toEqual(["#editor", "#separate"]);
+  expect(getTargetCandidates(document)).toEqual(["#separate"]);
   expect(getInputElements(document).map((element) => element.id)).toEqual(["editor", "separate"]);
   expect(getEditingHost(editor("child"))).toBe(editor());
   const changed = vi.fn();
