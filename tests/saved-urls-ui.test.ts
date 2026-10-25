@@ -145,7 +145,7 @@ test("サイドパネルは現在ホストと存在確認だけを更新し，�
   expect(field<HTMLInputElement>("generator-page-url").value).toBe("https://other.example/form");
   expect(value.value).toBe("作業中の値");
   expect(field("generator-result").textContent).toBe(generated);
-  expect(field("generator-save").textContent).toBe("更新");
+  expect(field("generator-save").getAttribute("aria-label")).toBe("更新");
   await vi.advanceTimersByTimeAsync(300);
   expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
     8,
@@ -341,7 +341,7 @@ test("編集で複数項目・CSS・改行・空値・ハッシュを復元し�
   const values = document.querySelectorAll<HTMLTextAreaElement>("[data-value]");
   expect([...inputs].map((input) => input.value)).toEqual(["#email", "#memo"]);
   expect([...values].map((value) => value.value)).toEqual(["", "日本\n&="]);
-  expect(field("generator-save").textContent).toBe("更新");
+  expect(field("generator-save").getAttribute("aria-label")).toBe("更新");
   prompt.mockReturnValueOnce("更新した名前");
   values[1].value = "変更\n値";
   values[1].dispatchEvent(new Event("input", { bubbles: true }));
@@ -364,13 +364,13 @@ test("未保存変更の置き換えを確認し，キャンセルで新規作�
   confirm.mockReturnValueOnce(false);
   action("edit").click();
   expect(field<HTMLInputElement>("generator-page-url").value).toContain("/draft");
-  expect(field("generator-save").textContent).toBe("保存");
+  expect(field("generator-save").getAttribute("aria-label")).toBe("保存");
   action("edit").click();
-  expect(field("generator-save").textContent).toBe("更新");
+  expect(field("generator-save").getAttribute("aria-label")).toBe("更新");
   field("generator-cancel").click();
   expect(field<HTMLInputElement>("generator-page-url").value).toBe(currentUrl);
   expect(document.querySelectorAll("[data-generator-item]")).toHaveLength(1);
-  expect(field("generator-save").textContent).toBe("保存");
+  expect(field("generator-save").getAttribute("aria-label")).toBe("保存");
   expect(field("generator-cancel").hidden).toBe(true);
   expect(document.getElementById("generator-name")).toBeNull();
   expect(set).not.toHaveBeenCalled();
@@ -423,7 +423,7 @@ test("更新失敗時には編集状態を保持する", async () => {
   field("generator-save").click();
   await flush();
   expect(value.value).toBe("new");
-  expect(field("generator-save").textContent).toBe("更新");
+  expect(field("generator-save").getAttribute("aria-label")).toBe("更新");
   expect(field("generator-cancel").hidden).toBe(false);
   expect((data[`${SAVED_URL_PREFIX}edit`] as SavedUrl).url).toBe(entry("edit").url);
 });
