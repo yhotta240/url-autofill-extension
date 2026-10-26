@@ -86,17 +86,21 @@ function mockClipboard(writeText: (text: string) => Promise<void>) {
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
 }
 
-test("insertText・空値のdeleteを一度だけ実行し，失敗時にpasteへ切り替えない", async () => {
+test.each([
+  ["insert-text", "insertText"],
+  ["clipboard-paste", "paste"],
+] as const)("%sは空値をdeleteし，失敗時に別方式へ切り替えない", async (method, action) => {
   document.body.innerHTML = '<div id="editor" contenteditable>保持</div>';
+  mockClipboard(async () => {});
   const command = mockCommand();
   const pasted = vi.fn();
   editor().addEventListener("paste", pasted);
-  expect(await executeFill(editor(), "更新", "insert-text")).toBe("command-dispatched");
-  expect(command).toHaveBeenLastCalledWith("insertText", false, "更新");
-  expect(await executeFill(editor(), "", "insert-text")).toBe("command-dispatched");
+  expect(await executeFill(editor(), "更新", method)).toBe("command-dispatched");
+  expect(command).toHaveBeenLastCalledWith(action, false, "更新");
+  expect(await executeFill(editor(), "", method)).toBe("command-dispatched");
   expect(command).toHaveBeenLastCalledWith("delete", false, "");
   command.mockReturnValue(false);
-  expect(await executeFill(editor(), "更新", "insert-text")).toBe("command-failed");
+  expect(await executeFill(editor(), "", method)).toBe("command-failed");
   expect(command).toHaveBeenCalledTimes(3);
   expect(pasted).not.toHaveBeenCalled();
   expect(editor().textContent).toBe("保持");

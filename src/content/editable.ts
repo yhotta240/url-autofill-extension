@@ -76,9 +76,11 @@ export function commandEditableText(
   if (typeof root.execCommand !== "function" || !selectEditableContents(element))
     return "unsupported";
   let action = "paste";
-  if (command === "insert-text") {
-    action = "insertText";
-    if (value === "") action = "delete";
+  if (command === "insert-text") action = "insertText";
+  if (value === "") {
+    // 空の子要素でBackspace相当の処理をすると，直前の兄弟まで削除してしまう．
+    if (root.getSelection()?.isCollapsed) return "command-dispatched";
+    action = "delete";
   }
   if (!root.execCommand(action, false, value)) return "command-failed";
   return "command-dispatched";
