@@ -10,7 +10,9 @@
   "permissions": [
     "storage",
     "tabs",
-    "sidePanel"
+    "sidePanel",
+    "clipboardRead",
+    "clipboardWrite"
   ],
   "side_panel": {
     "default_path": "popup.html?view=sidepanel"

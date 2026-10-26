@@ -1,7 +1,19 @@
-import { getEditingHost, isEditableElement, setEditableText } from "./editable.ts";
+import { DEFAULT_INPUT_METHOD, type InputMethod } from "../shared/input-method.ts";
+import {
+  commandEditableText,
+  getEditingHost,
+  isEditableElement,
+  pasteEditableText,
+} from "./editable.ts";
 
 export type FillResult =
   | "filled"
+  | "paste-dispatched"
+  | "command-dispatched"
+  | "command-failed"
+  | "clipboard-unavailable"
+  | "clipboard-failed"
+  | "cancelled"
   | "waiting"
   | "unsupported"
   | "disabled"
@@ -9,6 +21,35 @@ export type FillResult =
   | "invalid-value";
 
 const TEXT_INPUT_TYPES = new Set(["text", "email", "number", "search", "date"]);
+
+/** 非同期のクリップボード準備を含め，選択した方式だけを実行する． */
+export async function executeFill(
+  element: Element,
+  value: string,
+  method: InputMethod = DEFAULT_INPUT_METHOD,
+  options: { clipboardPrepared?: boolean; cancelled?: () => boolean } = {},
+): Promise<FillResult> {
+  if (options.cancelled?.()) return "cancelled";
+  if (!isEditableElement(element)) return fillElement(element, value);
+  const blocked = getFillBlockReason(element);
+  if (blocked) return blocked;
+  if (method === "clipboard-paste" && !options.clipboardPrepared) {
+    const clipboard = element.ownerDocument.defaultView?.navigator.clipboard;
+    if (!clipboard?.writeText) return "clipboard-unavailable";
+    try {
+      await clipboard.writeText(value);
+    } catch {
+      return "clipboard-failed";
+    }
+  }
+  if (options.cancelled?.() || !element.isConnected) return "cancelled";
+  const reason = getFillBlockReason(element);
+  if (reason) return reason;
+  if (method === "insert-text" || method === "clipboard-paste") {
+    return commandEditableText(element, value, method);
+  }
+  return pasteEditableText(element, value);
+}
 
 function hasSensitiveAutocomplete(element: Element): boolean {
   const tokens = (element.getAttribute("autocomplete") ?? "").toLowerCase().split(/\s+/);
@@ -54,7 +95,7 @@ export function getFillBlockReason(
   return null;
 }
 
-/** 親の内容取得や置換で，保護された子を巻き込まない． */
+/** 親の内容取得や貼り付けで，保護された子を巻き込まない． */
 function protectedDescendantReason(element: HTMLElement): ReturnType<typeof getFillBlockReason> {
   const descendants = element.querySelectorAll(
     "input, textarea, select, [autocomplete], [contenteditable], [aria-readonly], [aria-disabled], [inert]",
@@ -81,26 +122,12 @@ function protectedDescendantReason(element: HTMLElement): ReturnType<typeof getF
   return null;
 }
 
-/** ネイティブsetterを使い，ページ側の独自setterやクリック処理を実行しない． */
+/** 通常の入力欄にはネイティブsetterを使う． */
 export function fillElement(element: Element, value: string): FillResult {
   const blocked = getFillBlockReason(element);
   if (blocked) return blocked;
   const view = element.ownerDocument.defaultView;
   if (!view) return "unsupported";
-  if (isEditableElement(element)) {
-    setEditableText(element, value);
-    const host = getEditingHost(element);
-    host.dispatchEvent(
-      new view.InputEvent("input", {
-        bubbles: true,
-        composed: true,
-        inputType: "insertText",
-        data: value,
-      }),
-    );
-    host.dispatchEvent(new view.Event("change", { bubbles: true }));
-    return "filled";
-  }
   const isInput = element instanceof view.HTMLInputElement;
   const isTextarea = element instanceof view.HTMLTextAreaElement;
 

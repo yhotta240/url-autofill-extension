@@ -1,4 +1,9 @@
 import { type FillEntry, MAX_FIELDS } from "../../content/parser.ts";
+import {
+  DEFAULT_INPUT_METHOD,
+  type InputMethod,
+  isInputMethod,
+} from "../../shared/input-method.ts";
 import { readSavedUrl, type SavedUrl, saveUrl } from "../../utils/saved-urls.ts";
 import { generateAutofillUrl } from "../../utils/url-generator.ts";
 import { type CurrentPage, getCurrentPage } from "../current-page.ts";
@@ -29,6 +34,8 @@ export function setupUrlGenerator(
   const save = output?.querySelector<HTMLButtonElement>("#generator-save");
   const cancel = output?.querySelector<HTMLButtonElement>("#generator-cancel");
   const saveStatus = output?.querySelector<HTMLElement>("#generator-save-status");
+  const inputMethod = form.querySelector<HTMLSelectElement>("#generator-input-method");
+  const clipboardHint = form.querySelector<HTMLElement>("#generator-clipboard-hint");
   if (
     !pageUrl ||
     !list ||
@@ -47,7 +54,9 @@ export function setupUrlGenerator(
     !copyStatus ||
     !save ||
     !cancel ||
-    !saveStatus
+    !saveStatus ||
+    !inputMethod ||
+    !clipboardHint
   )
     return;
 
@@ -64,6 +73,15 @@ export function setupUrlGenerator(
   let baseline = "";
   let rendering = false;
   let sampleUntouched = true;
+  inputMethod.value = DEFAULT_INPUT_METHOD;
+  const selectedMethod = (): InputMethod => {
+    if (inputMethod && isInputMethod(inputMethod.value)) return inputMethod.value;
+    return DEFAULT_INPUT_METHOD;
+  };
+  const updateMethodHint = (): void => {
+    clipboardHint.hidden = selectedMethod() !== "clipboard-paste";
+  };
+  updateMethodHint();
 
   const updateSaveLabel = (label: string): void => {
     save.setAttribute("aria-label", label);
@@ -71,7 +89,12 @@ export function setupUrlGenerator(
   };
 
   function snapshot(): string {
-    return JSON.stringify([savedName, pageUrl?.value, items.map((item) => item.readEntry())]);
+    return JSON.stringify([
+      savedName,
+      pageUrl?.value,
+      selectedMethod(),
+      items.map((item) => item.readEntry()),
+    ]);
   }
 
   function render(showErrors = true): void {
@@ -118,6 +141,7 @@ export function setupUrlGenerator(
       result.textContent = generateAutofillUrl(
         pageUrl.value,
         items.map((item) => item.readEntry()),
+        selectedMethod(),
       );
       copy.disabled = false;
       open.disabled = opening;
@@ -146,7 +170,7 @@ export function setupUrlGenerator(
   }
 
   function addItem(initial?: FillEntry) {
-    if (!template || !list || items.length >= MAX_FIELDS) return;
+    if (!template || !list || !inputMethod || items.length >= MAX_FIELDS) return;
     const item = createGeneratorItem(
       template,
       nextId++,
@@ -165,6 +189,7 @@ export function setupUrlGenerator(
         render();
         items[Math.min(index, items.length - 1)].target.focus();
       },
+      inputMethod,
       initial,
       () => render(interacted),
     );
@@ -177,6 +202,10 @@ export function setupUrlGenerator(
   pageUrl.addEventListener("input", () => {
     urlEdited = true;
     sourceStatus.textContent = "";
+    render();
+  });
+  inputMethod.addEventListener("change", () => {
+    updateMethodHint();
     render();
   });
   add.addEventListener("click", () => {
@@ -312,6 +341,8 @@ export function setupUrlGenerator(
     urlEdited = false;
     interacted = false;
     sampleUntouched = true;
+    inputMethod.value = DEFAULT_INPUT_METHOD;
+    updateMethodHint();
     pageUrl.value = currentPage?.url ?? "";
     sourceStatus.textContent =
       currentPage === null
@@ -365,6 +396,8 @@ export function setupUrlGenerator(
         sampleUntouched = false;
         urlEdited = true;
         pageUrl.value = request.cleanUrl;
+        inputMethod.value = request.method;
+        updateMethodHint();
         sourceStatus.textContent = "";
         replaceItems(request.entries);
         editingId = item.id;

@@ -27,7 +27,7 @@ export function startAutofill(root: Document): () => void {
       view.console.warn(`[URL AutoFill] ${request.error}`);
       return;
     }
-    cancel = startFilling(request.entries, root);
+    cancel = startFilling(request.entries, root, request.method);
   }
 
   const handlePageHide = () => cancel();

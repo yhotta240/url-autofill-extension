@@ -8,6 +8,7 @@ import {
   type TargetCheckResponse,
   type ValueInputInfo,
 } from "../shared/target-check.ts";
+import { isTargetTestRequest } from "../shared/target-test.ts";
 import { getFillBlockReason } from "./autofill.ts";
 import { captureForm, getCaptureForms } from "./form-capture.ts";
 import { getRadioInfo } from "./radio.ts";
@@ -15,6 +16,7 @@ import { readTargetValue } from "./read-target-value.ts";
 import { resolveTarget } from "./resolver.ts";
 import { getTargetCandidates } from "./target-candidates.ts";
 import { getTargetInfo } from "./target-info.ts";
+import { testTarget } from "./target-test.ts";
 
 function getValueInputInfo(element: Element): ValueInputInfo | undefined {
   const view = element.ownerDocument.defaultView;
@@ -49,6 +51,12 @@ export function listenForTargetChecks(root: Document): () => void {
     _sender,
     sendResponse,
   ) => {
+    if (isTargetTestRequest(message)) {
+      void (async () => {
+        sendResponse(await testTarget(root, message));
+      })();
+      return true;
+    }
     if (isFormCaptureRequest(message)) {
       try {
         sendResponse({

@@ -1,5 +1,6 @@
 import type { FillEntry } from "../../content/parser.ts";
 import type { CurrentPage } from "../current-page.ts";
+import { createEditableInput } from "./editable-input.ts";
 import { createTargetCandidates } from "./target-candidates.ts";
 import { createTargetCheck } from "./target-check.ts";
 import { createValueInput } from "./value-input.ts";
@@ -10,6 +11,7 @@ export function createGeneratorItem(
   id: number,
   onChange: () => void,
   onRemove: () => void,
+  inputMethod: HTMLSelectElement,
   initial?: FillEntry,
   onCheckChange: () => void = onChange,
 ) {
@@ -24,6 +26,7 @@ export function createGeneratorItem(
   const radioOutput = fragment.querySelector<HTMLOutputElement>("[data-radio-output]");
   const valueLabel = fragment.querySelector<HTMLLabelElement>("[data-value-label]");
   const remove = fragment.querySelector<HTMLButtonElement>("[data-remove]");
+  const editableContainer = fragment.querySelector<HTMLElement>("[data-editable-input]");
   if (
     !element ||
     !legend ||
@@ -34,7 +37,8 @@ export function createGeneratorItem(
     !valueSelect ||
     !radioOutput ||
     !valueLabel ||
-    !remove
+    !remove ||
+    !editableContainer
   ) {
     throw new Error("URL生成項目のテンプレートが不正です．");
   }
@@ -54,6 +58,7 @@ export function createGeneratorItem(
   valueSelect.setAttribute("aria-describedby", "generator-error");
   let radioError = "";
   let canReadValue = initial === undefined;
+  const editableInput = createEditableInput(editableContainer, target, value, inputMethod);
   const onValueChange = () => {
     canReadValue = false;
     onChange();
@@ -82,9 +87,11 @@ export function createGeneratorItem(
       const currentValue = canReadValue && value.value === "" ? response?.currentValue : undefined;
       if (response?.status === "found") canReadValue = false;
       valueInput.setInfo(response?.radio ?? response?.valueInput, currentValue);
+      editableInput.setInfo(response);
       if (before !== validationState()) onCheckChange();
     },
     () => canReadValue && value.value === "",
+    () => editableInput.setInfo(null),
   );
   const targetCandidates = createTargetCandidates(target, candidates);
   target.value = initial?.selector ?? "";
@@ -111,10 +118,12 @@ export function createGeneratorItem(
     },
     selectedRadioGroup: valueInput.selectedGroup,
     checkTarget(pageUrl: string, page: CurrentPage | null | undefined): void {
+      editableInput.updatePage(pageUrl, page);
       targetCandidates.update(pageUrl, page);
       targetCheck.update(target.value.trim() ? target.value : null, pageUrl, page);
     },
     dispose(): void {
+      editableInput.dispose();
       valueSelect.removeEventListener("change", onValueSelection);
       valueInput.dispose();
       targetCheck.dispose();

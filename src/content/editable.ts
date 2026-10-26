@@ -29,13 +29,57 @@ export function getInputElements(root: Document): HTMLElement[] {
   );
 }
 
-/** 改行をbr要素で表現し，URLの値をHTMLとして解析しない． */
-export function setEditableText(element: HTMLElement, value: string): void {
+/** 対象の内容を選択し，テキストの貼り付け処理をサイトへ委ねる． */
+function selectEditableContents(element: HTMLElement): boolean {
   const root = element.ownerDocument;
-  const fragment = root.createDocumentFragment();
-  value.split(/\r\n?|\n/).forEach((line, index) => {
-    if (index > 0) fragment.append(root.createElement("br"));
-    fragment.append(root.createTextNode(line));
-  });
-  root.defaultView?.Element.prototype.replaceChildren.call(element, fragment);
+  const view = root.defaultView;
+  const selection = root.getSelection();
+  if (!view || !selection) return false;
+  const initialUrl = view.location.href;
+  getEditingHost(element).focus();
+  const range = root.createRange();
+  range.selectNodeContents(element);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  // pasteの前に，サイト側のエディタへ変更した選択範囲を通知する．
+  root.dispatchEvent(new view.Event("selectionchange"));
+  return element.isConnected && isEditableElement(element) && view.location.href === initialUrl;
+}
+
+export function pasteEditableText(
+  element: HTMLElement,
+  value: string,
+): "paste-dispatched" | "unsupported" {
+  const view = element.ownerDocument.defaultView;
+  if (!view || !selectEditableContents(element)) return "unsupported";
+  const clipboardData = new view.DataTransfer();
+  clipboardData.setData("text/plain", value);
+  element.dispatchEvent(
+    new view.ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clipboardData,
+    }),
+  );
+  // dispatchEventの戻り値は挿入成功を表さない．送信済みとして扱い，再試行しない．
+  return "paste-dispatched";
+}
+
+/** 選択した範囲へ一つの編集コマンドだけを実行する． */
+export function commandEditableText(
+  element: HTMLElement,
+  value: string,
+  command: "insert-text" | "clipboard-paste",
+): "command-dispatched" | "command-failed" | "unsupported" {
+  const root = element.ownerDocument;
+  if (typeof root.execCommand !== "function" || !selectEditableContents(element))
+    return "unsupported";
+  let action = "paste";
+  if (command === "insert-text") {
+    action = "insertText";
+    if (value === "") action = "delete";
+  }
+  if (!root.execCommand(action, false, value)) return "command-failed";
+  return "command-dispatched";
 }
