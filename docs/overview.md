@@ -21,5 +21,5 @@ URLを開くだけで，指定した内容をWebフォームへ自動入力で�
 
 - パスワード，ファイル，hidden入力，非対応の入力型，無効・読み取り専用の欄は変更しない
 - 入力先を特定できない場合は入力しない
-- iframe，Shadow DOM，contenteditable は対象外
+- iframe，Shadow DOM は対象外
 - 保存したURLは端末内に保持し，入力値やURLはログに出力しない

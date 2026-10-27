@@ -1,10 +1,23 @@
 import type { FormOption } from "../shared/form-capture.ts";
 import { getFillBlockReason } from "./autofill.ts";
+import { getInputElements, isEditableElement } from "./editable.ts";
 import { type FillEntry, MAX_FIELDS } from "./parser.ts";
+import { readTargetValue } from "./read-target-value.ts";
 import { isRadio, resolveTarget } from "./resolver.ts";
 import { radioGroupSelector, selectorFor } from "./target-candidates.ts";
 
-type Control = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+function ownerForm(element: HTMLElement): HTMLFormElement | null {
+  const view = element.ownerDocument.defaultView;
+  if (!view) return null;
+  if (
+    element instanceof view.HTMLInputElement ||
+    element instanceof view.HTMLTextAreaElement ||
+    element instanceof view.HTMLSelectElement ||
+    element instanceof view.HTMLButtonElement
+  )
+    return element.form;
+  return element.closest("form");
+}
 
 /** フォームの定義だけを取得し，入力値や選択状態は読み取らない． */
 export function getCaptureForms(root: Document): FormOption[] {
@@ -19,6 +32,8 @@ export function getCaptureForms(root: Document): FormOption[] {
 function sameTarget(first: Element, second: Element): boolean {
   return (
     first === second ||
+    (isEditableElement(first) && first.contains(second)) ||
+    (isEditableElement(second) && second.contains(first)) ||
     (isRadio(first) &&
       isRadio(second) &&
       first.name !== "" &&
@@ -27,8 +42,8 @@ function sameTarget(first: Element, second: Element): boolean {
   );
 }
 
-function controlSelector(element: Control, root: Document): string {
-  const form = element.form;
+function controlSelector(element: HTMLElement, root: Document): string {
+  const form = ownerForm(element);
   if (form && element.closest("form") === form) {
     const scope = selectorFor(form, root);
     const relative = selectorFor(element, form);
@@ -68,8 +83,8 @@ export function captureForm(root: Document, scope: string | null, existing: stri
   const grouped = new Set<Element>();
   let duplicates = 0;
   let skipped = 0;
-  for (const control of root.querySelectorAll<Control>("input, textarea, select")) {
-    if ((form && control.form !== form) || grouped.has(control)) continue;
+  for (const control of getInputElements(root)) {
+    if ((form && ownerForm(control) !== form) || grouped.has(control)) continue;
     if (getFillBlockReason(control)) {
       skipped += 1;
       continue;
@@ -96,24 +111,15 @@ export function captureForm(root: Document, scope: string | null, existing: stri
       duplicates += 1;
       continue;
     }
-    const value =
-      element instanceof view.HTMLInputElement && element.type === "checkbox"
-        ? String(element.checked)
-        : element.value;
-    if (isRadio(element) && !radioGroup && value === "") {
+    let value: string | undefined;
+    if (radioGroup && isRadio(element)) {
+      value = element.value;
+    } else {
+      value = readTargetValue({ status: "found", kind: "element", element });
+    }
+    if (value === undefined) {
       skipped += 1;
       continue;
-    } else if (element instanceof view.HTMLSelectElement) {
-      const option = Array.from(element.options).find((item) => item.value === value);
-      const selectedCount = element.selectedOptions.length;
-      if (
-        (element.multiple && selectedCount > 1) ||
-        (selectedCount === 0 && option !== undefined) ||
-        (option && (option.disabled || option.closest("optgroup[disabled]")))
-      ) {
-        skipped += 1;
-        continue;
-      }
     }
     selector ||= controlSelector(element, root);
     if (!selector) {

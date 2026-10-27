@@ -156,6 +156,16 @@
           <input type="url" class="form-control form-control-sm" id="generator-page-url" placeholder="https://example.com/form" required aria-describedby="generator-source-status generator-error" spellcheck="false">
           <p id="generator-source-status" class="form-text mb-0" role="status">現在のページURLを取得しています…</p>
         </div>
+        <details class="mb-2" id="generator-options">
+          <summary class="form-label mb-1">オプション</summary>
+          <label for="generator-input-method" class="form-label">contenteditableの入力方式</label>
+          <select id="generator-input-method" class="form-select form-select-sm" aria-describedby="generator-clipboard-hint">
+            <option value="clipboard-paste" selected>実クリップボードpaste</option>
+            <option value="paste-event">疑似paste</option>
+            <option value="insert-text">insertText</option>
+          </select>
+          <p class="form-text mb-0" id="generator-clipboard-hint">クリップボードを入力値で上書きします．</p>
+        </details>
         <div class="mb-2">
           <label for="generator-capture-scope" class="form-label">取り込み範囲</label>
           <div class="d-flex align-items-center gap-2">
@@ -187,11 +197,17 @@
                 </div>
                 <p class="form-text mb-0 text-break" data-target-status role="status" hidden></p>
               </div>
-              <div>
+              <div data-editable-input>
                 <label class="form-label" data-value-label>入力値</label>
-                <textarea class="form-control form-control-sm" data-value rows="1"></textarea>
-                <select class="form-select form-select-sm" data-value-select hidden></select>
-                <output class="form-control-plaintext py-0" data-radio-output tabindex="0" hidden></output>
+                <div class="d-flex align-items-start gap-1">
+                  <textarea class="form-control form-control-sm" data-value rows="1"></textarea>
+                  <select class="form-select form-select-sm" data-value-select hidden></select>
+                  <output class="form-control-plaintext py-0" data-radio-output tabindex="0" hidden></output>
+                    <button type="button" class="btn btn-sm btn-outline-secondary generator-action p-0 align-items-center justify-content-center flex-shrink-0" data-input-test aria-label="入力をテスト" title="入力をテスト" hidden>
+                      <i class="bi bi-play-fill" style="font-size: 14px; line-height: 1;" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <p class="form-text mb-0 text-break" data-input-test-status role="status"></p>
               </div>
             </div>
           </fieldset>

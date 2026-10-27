@@ -1,4 +1,5 @@
 import { getFillBlockReason } from "./autofill.ts";
+import { isEditableElement } from "./editable.ts";
 import { isRadio, type Resolution } from "./resolver.ts";
 
 /** 空欄から取得要求があるときだけ呼び，自動入力で再現できる現在値を返す． */
@@ -9,6 +10,7 @@ export function readTargetValue(result: Resolution): string | undefined {
   if (!element || getFillBlockReason(element)) return;
   const view = element.ownerDocument.defaultView;
   if (!view) return;
+  if (isEditableElement(element)) return element.innerText;
   if (isRadio(element)) {
     if (result.kind === "radio-group") return element.value;
     if (!element.checked) return "";

@@ -22,6 +22,7 @@ export function createTargetCheck(
   element: HTMLElement,
   onResult: (response: TargetCheckResponse | null) => void = () => {},
   shouldReadValue: () => boolean = () => false,
+  onChecking: () => void = () => {},
 ) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let revision = 0;
@@ -90,6 +91,7 @@ export function createTargetCheck(
     } else if (normalizePageUrl(page.url) !== url) {
       show("different-page");
     } else {
+      onChecking();
       show("checking");
       const version = revision;
       timer = setTimeout(() => {

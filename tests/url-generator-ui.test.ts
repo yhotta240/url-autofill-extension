@@ -298,6 +298,64 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+test("共通オプションの方式をURLへ反映し，テストボタンだけ対象に応じて隠す", async () => {
+  await setup();
+  sendMessage.mockResolvedValue({
+    url: "https://example.com/form?q=1#/settings",
+    status: "found",
+    targetInfo: { label: "本文", type: "contenteditable" },
+  });
+  change("generator-target", "#editor");
+  await vi.advanceTimersByTimeAsync(300);
+  const container = items()[0].querySelector<HTMLElement>("[data-editable-input]");
+  const select = document.querySelector<HTMLSelectElement>("#generator-input-method");
+  const testButton = items()[0].querySelector<HTMLButtonElement>("[data-input-test]");
+  const hint = document.getElementById("generator-clipboard-hint");
+  expect(container?.hidden).toBe(false);
+  if (!select) throw new Error("method missing");
+  expect(select.value).toBe("clipboard-paste");
+  expect(testButton?.hidden).toBe(false);
+  expect(hint?.hidden).toBe(false);
+  select.value = "insert-text";
+  select.dispatchEvent(new Event("change"));
+  expect(parseAutofillUrl(generated())?.method).toBe("insert-text");
+  expect(hint?.hidden).toBe(true);
+  sendMessage.mockResolvedValue({
+    url: "https://example.com/form?q=1#/settings",
+    status: "found",
+    targetInfo: { label: "名前", type: "text" },
+  });
+  change("generator-target", "#name");
+  expect(testButton?.hidden).toBe(true);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(testButton?.hidden).toBe(true);
+  expect(select.value).toBe("insert-text");
+  expect(parseAutofillUrl(generated())?.method).toBe("insert-text");
+});
+
+test("保存URLを編集すると入力方式も復元する", async () => {
+  const generator = setupUrlGenerator();
+  await Promise.resolve();
+  sendMessage.mockResolvedValue({
+    url: "https://example.com/form?q=1#/settings",
+    status: "found",
+    targetInfo: { label: "本文", type: "contenteditable" },
+  });
+  expect(
+    generator?.edit({
+      id: "method-test",
+      name: "テスト",
+      createdAt: 1,
+      url: "https://example.com/form?q=1#/settings#url-autofill:method=paste-event&fill(%23editor)=test",
+    }),
+  ).toBe(true);
+  await vi.advanceTimersByTimeAsync(300);
+  expect(document.querySelector<HTMLSelectElement>("#generator-input-method")?.value).toBe(
+    "paste-event",
+  );
+  expect(parseAutofillUrl(generated())?.method).toBe("paste-event");
+});
+
 test("新しい項目の空欄に現在値を取り込み，生成URLにも反映する", async () => {
   await setup();
   sendMessage.mockResolvedValue(currentValueResponse("田中\n太郎"));

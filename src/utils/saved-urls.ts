@@ -9,7 +9,7 @@ export function readSavedUrl(url: string) {
   if (!request || request.error || request.entries.length === 0) {
     throw new Error("保存URLの形式が不正です．");
   }
-  generateAutofillUrl(request.cleanUrl, request.entries);
+  generateAutofillUrl(request.cleanUrl, request.entries, request.method);
   return request;
 }
 

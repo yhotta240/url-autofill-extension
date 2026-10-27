@@ -5,6 +5,7 @@ import {
   MAX_URL_LENGTH,
   parseAutofillUrl,
 } from "../src/content/parser.ts";
+import { DEFAULT_INPUT_METHOD } from "../src/shared/input-method.ts";
 import { generateAutofillUrl } from "../src/utils/url-generator.ts";
 
 const email: FillEntry = { selector: "#email", value: "test@example.com" };
@@ -23,6 +24,7 @@ test.each([
   expect(parseAutofillUrl(generateAutofillUrl(base, [entry]))).toEqual({
     cleanUrl: base,
     entries: [entry],
+    method: DEFAULT_INPUT_METHOD,
   });
 });
 
@@ -84,7 +86,7 @@ test("複数項目を順番どおりに結合し，復元できる", () => {
   ];
   const base = "https://example.com/form?q=1#/settings";
   const url = generateAutofillUrl(`${base}#url-autofill:old=value`, entries);
-  expect(parseAutofillUrl(url)).toEqual({ cleanUrl: base, entries });
+  expect(parseAutofillUrl(url)).toEqual({ cleanUrl: base, entries, method: DEFAULT_INPUT_METHOD });
 });
 
 test("同じセレクタの重複を拒否する", () => {

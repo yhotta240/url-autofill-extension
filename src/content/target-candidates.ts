@@ -1,4 +1,5 @@
 import { getFillBlockReason } from "./autofill.ts";
+import { getInputElements } from "./editable.ts";
 import { isRadio, resolveTarget } from "./resolver.ts";
 
 export function selectorFor(element: Element, root: Document | Element): string {
@@ -90,7 +91,7 @@ export function radioGroupSelector(radio: HTMLInputElement, root: Document, pref
 export function getTargetCandidates(root: Document): string[] {
   const candidates = new Set<string>();
   const grouped = new Set<Element>();
-  for (const element of root.querySelectorAll("input, textarea, select")) {
+  for (const element of getInputElements(root)) {
     if (getFillBlockReason(element) || grouped.has(element)) continue;
     const group = isRadio(element) ? radioGroupSelector(element, root) : undefined;
     if (group) {
