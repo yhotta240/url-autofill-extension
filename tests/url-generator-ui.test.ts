@@ -757,10 +757,8 @@ test("無効なCSSや重複した指定先があれば全体のコピーを止�
   expect(input("generator-target", 1).hasAttribute("aria-invalid")).toBe(false);
 });
 
-test("項目の削除でURLと番号を更新し，残った項目へのフォーカスとラベルを保つ", async () => {
+test("項目を0件まで削除でき，番号・フォーカス・再追加後の生成を保つ", async () => {
   await setup();
-  remove(0);
-  expect(items()).toHaveLength(1);
   add();
   change("generator-target", "username", 1);
   change("generator-value", "Tanaka", 1);
@@ -782,6 +780,22 @@ test("項目の削除でURLと番号を更新し，残った項目へのフォ�
   remove(1);
   expect(button().disabled).toBe(false);
   expect(document.activeElement).toBe(remainingTarget);
+  remove(0);
+  expect(items()).toHaveLength(0);
+  expect(document.getElementById("generator-item-count")?.textContent).toBe(
+    `0 / ${MAX_FIELDS}項目`,
+  );
+  expect(generated()).toBe("");
+  expect(error().hidden).toBe(false);
+  expect(error().textContent).toContain("入力項目は1件以上");
+  for (const id of ["generator-copy", "generator-open", "generator-save"]) {
+    expect((document.getElementById(id) as HTMLButtonElement).disabled).toBe(true);
+  }
+  expect(document.activeElement).toBe(document.getElementById("generator-add"));
+  add();
+  change("generator-target", "#name");
+  expect(error().hidden).toBe(true);
+  expect(button().disabled).toBe(false);
 });
 
 test("上限件数で追加を止め，削除すると再び追加できる", async () => {

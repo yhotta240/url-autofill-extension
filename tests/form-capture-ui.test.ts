@@ -61,7 +61,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-test("一覧取得だけでは値を要求せず，初期サンプルは取り込み成功時に置き換える", async () => {
+test("一覧取得では値を読まず，初期状態・全削除後に取り込める", async () => {
   await setup();
   expect(scope().value).toBe("");
   expect([...scope().options].map((option) => option.textContent)).toEqual([
@@ -79,8 +79,13 @@ test("一覧取得だけでは値を要求せず，初期サンプルは取り�
     { frameId: 0 },
   );
   expect(entries()).toEqual(captured);
-  expect(parseAutofillUrl(field("generator-result").textContent ?? "")?.entries).toEqual(captured);
   expect(status()).toContain("1件追加");
+  items()[0].querySelector<HTMLButtonElement>("[data-remove]")?.click();
+  expect(items()).toHaveLength(0);
+  button().click();
+  await flush();
+  expect(field("generator-error").hidden).toBe(true);
+  expect(parseAutofillUrl(field("generator-result").textContent ?? "")?.entries).toEqual(captured);
 });
 
 test("編集した項目を保持して追加し，フォーム選択と再取得で候補を更新する", async () => {
