@@ -163,7 +163,6 @@ export function setupUrlGenerator(
     if (!add || !count) return;
     items.forEach((item, index) => {
       item.setNumber(index + 1);
-      item.remove.disabled = items.length === 1;
     });
     add.disabled = items.length >= MAX_FIELDS;
     count.textContent = `${items.length} / ${MAX_FIELDS}項目`;
@@ -179,7 +178,6 @@ export function setupUrlGenerator(
         render();
       },
       () => {
-        if (items.length === 1) return;
         sampleUntouched = false;
         const index = items.indexOf(item);
         items.splice(index, 1);
@@ -187,7 +185,9 @@ export function setupUrlGenerator(
         item.element.remove();
         updateItems();
         render();
-        items[Math.min(index, items.length - 1)].target.focus();
+        const nextItem = items[Math.min(index, items.length - 1)];
+        if (nextItem) nextItem.target.focus();
+        else add?.focus();
       },
       inputMethod,
       initial,
